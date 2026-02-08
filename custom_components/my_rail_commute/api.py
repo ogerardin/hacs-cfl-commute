@@ -589,3 +589,14 @@ class NationalRailAPI:
         except Exception as err:
             _LOGGER.error("API key validation error: %s", err)
             raise AuthenticationError(ERROR_AUTH) from err
+
+    async def close(self) -> None:
+        """Close the API client and clean up resources.
+
+        This should be called when the API client is no longer needed to ensure
+        proper cleanup of the aiohttp ClientSession and prevent resource leaks.
+        """
+        if self._session and not self._session.closed:
+            _LOGGER.debug("Closing aiohttp ClientSession")
+            await self._session.close()
+        self._session = None
