@@ -174,7 +174,7 @@ class CommuteSummarySensor(NationalRailCommuteEntity, SensorEntity):
                 "train_number": idx,
                 "scheduled_departure": service.get("scheduled_departure"),
                 "expected_departure": service.get("expected_departure"),
-                "platform": service.get("platform") or "TBA",
+                "platform": service.get("platform"),
                 "operator": service.get("operator"),
                 "service_id": service.get("service_id"),
                 "status": service.get("status"),
@@ -320,9 +320,6 @@ class CommuteStatusSensor(NationalRailCommuteEntity, SensorEntity):
                 default=0
             )
 
-        # Include disruption information for context
-        disruption = data.get("disruption", {})
-
         return {
             "total_trains": total_trains,
             "on_time_count": on_time,
@@ -330,7 +327,7 @@ class CommuteStatusSensor(NationalRailCommuteEntity, SensorEntity):
             "major_delays_count": major_delays,
             "cancelled_count": cancelled_count,
             "max_delay_minutes": max_delay,
-            "disruption_threshold_met": disruption.get("has_disruption", False),
+            "disruption_threshold_met": data.get("overall_status", STATUS_NORMAL) != STATUS_NORMAL,
             ATTR_ORIGIN: data.get("origin"),
             ATTR_ORIGIN_NAME: data.get("origin_name"),
             ATTR_DESTINATION: data.get("destination"),
@@ -393,7 +390,8 @@ class TrainSensor(NationalRailCommuteEntity, SensorEntity):
             current_service_id = train.get("service_id")
 
             # Handle platform change detection for the same service
-            if current_service_id and current_service_id == self._current_service_id:
+            # Only track platform changes if both current and previous service have valid IDs
+            if current_service_id and self._current_service_id and current_service_id == self._current_service_id:
                 # Same service - check for platform change
                 if self._previous_platform != current_platform:
                     if self._previous_platform is not None:
@@ -514,7 +512,7 @@ class TrainSensor(NationalRailCommuteEntity, SensorEntity):
             "departure_time": departure_time,  # Moved from state to attribute
             ATTR_SCHEDULED_DEPARTURE: train.get("scheduled_departure"),
             ATTR_EXPECTED_DEPARTURE: train.get("expected_departure"),
-            ATTR_PLATFORM: train.get("platform") or "TBA",
+            ATTR_PLATFORM: train.get("platform"),
             "platform_changed": self._platform_changed,
             "previous_platform": self._previous_platform if self._platform_changed else None,
             ATTR_OPERATOR: train.get("operator"),
@@ -607,7 +605,8 @@ class NextTrainSensor(NationalRailCommuteEntity, SensorEntity):
             current_service_id = train.get("service_id")
 
             # Handle platform change detection for the same service
-            if current_service_id and current_service_id == self._current_service_id:
+            # Only track platform changes if both current and previous service have valid IDs
+            if current_service_id and self._current_service_id and current_service_id == self._current_service_id:
                 # Same service - check for platform change
                 if self._previous_platform != current_platform:
                     if self._previous_platform is not None:
@@ -725,7 +724,7 @@ class NextTrainSensor(NationalRailCommuteEntity, SensorEntity):
             "departure_time": departure_time,  # Moved from state to attribute
             ATTR_SCHEDULED_DEPARTURE: train.get("scheduled_departure"),
             ATTR_EXPECTED_DEPARTURE: train.get("expected_departure"),
-            ATTR_PLATFORM: train.get("platform") or "TBA",
+            ATTR_PLATFORM: train.get("platform"),
             "platform_changed": self._platform_changed,
             "previous_platform": self._previous_platform if self._platform_changed else None,
             ATTR_OPERATOR: train.get("operator"),

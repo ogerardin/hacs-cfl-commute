@@ -138,6 +138,17 @@ class TestValidateStation:
             with pytest.raises(InvalidStationError):
                 await api_client.validate_station("XYZ")
 
+    async def test_validate_station_bad_request(self, api_client):
+        """Test station validation with 400 bad request (invalid CRS code)."""
+        with aioresponses() as mock:
+            mock.get(
+                f"{API_BASE_URL}/GetDepartureBoard/PAS?numRows=1",
+                status=400,
+            )
+
+            with pytest.raises(InvalidStationError):
+                await api_client.validate_station("PAS")
+
     async def test_validate_station_uppercase_conversion(self, api_client):
         """Test that station codes are converted to uppercase."""
         with aioresponses() as mock:
@@ -210,6 +221,17 @@ class TestGetDepartureBoard:
 
             with pytest.raises(InvalidStationError):
                 await api_client.get_departure_board("XYZ", "RDG")
+
+    async def test_get_departure_board_bad_request(self, api_client):
+        """Test departure board with 400 bad request (invalid CRS code)."""
+        with aioresponses() as mock:
+            mock.get(
+                f"{API_BASE_URL}/GetDepBoardWithDetails/PAS?filterCrs=RDG&timeWindow=60&numRows=10",
+                status=400,
+            )
+
+            with pytest.raises(InvalidStationError):
+                await api_client.get_departure_board("PAS", "RDG")
 
 
 class TestParseService:
@@ -308,6 +330,32 @@ class TestParseService:
         assert result["expected_departure"] == "00:05"
         assert result["status"] == STATUS_DELAYED
         assert result["delay_minutes"] == 15  # Crosses midnight
+
+    @pytest.mark.parametrize(
+        ("std", "etd"),
+        [
+            ("08:35", "9:05"),        # Single-digit hour
+            ("08:35", "abc:de"),      # Non-numeric
+            ("08:35", "09:05:30"),    # HH:MM:SS instead of HH:MM
+            ("8:35", "09:05"),        # Single-digit hour in std
+            ("08:35", "Delayed: 5"),  # Text with colon
+        ],
+    )
+    async def test_parse_service_invalid_time_format_no_delay(self, api_client, std, etd):
+        """Test that invalid time formats don't produce a delay calculation."""
+        service_data = {
+            "std": std,
+            "etd": etd,
+            "platform": "1",
+            "operator": "Test Operator",
+            "serviceID": "service_invalid",
+            "destination": [{"locationName": "Test"}],
+        }
+
+        result = api_client._parse_service(service_data)
+
+        # Delay should remain 0 since the time format is invalid
+        assert result["delay_minutes"] == 0
 
 
 class TestAPIRetryLogic:

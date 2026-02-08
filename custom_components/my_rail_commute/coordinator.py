@@ -1,7 +1,9 @@
 """Data update coordinator for My Rail Commute integration."""
 from __future__ import annotations
 
+import asyncio
 import logging
+import re
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -26,6 +28,7 @@ from .const import (
     DEFAULT_MINOR_DELAY_THRESHOLD,
     DEFAULT_SEVERE_DELAY_THRESHOLD,
     DOMAIN,
+    MIN_DELAY_THRESHOLD,
     NIGHT_HOURS,
     PEAK_HOURS,
     STATUS_CANCELLED,
@@ -42,6 +45,8 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+_TIME_FORMAT_RE = re.compile(r"^\d{2}:\d{2}$")
 
 
 class NationalRailDataUpdateCoordinator(DataUpdateCoordinator):
@@ -64,6 +69,7 @@ class NationalRailDataUpdateCoordinator(DataUpdateCoordinator):
         self.config = config
         self._failed_updates = 0
         self._max_failed_updates = 3
+        self._update_interval_lock = asyncio.Lock()
 
         # Get configuration
         self.origin = config[CONF_ORIGIN]
@@ -89,6 +95,26 @@ class NationalRailDataUpdateCoordinator(DataUpdateCoordinator):
             self.major_delay_threshold = int(
                 config.get(CONF_DISRUPTION_MULTIPLE_DELAY, DEFAULT_MAJOR_DELAY_THRESHOLD)
             )
+            self.minor_delay_threshold = DEFAULT_MINOR_DELAY_THRESHOLD
+
+        # Validate threshold hierarchy (catches manually edited .storage files)
+        if not (
+            self.severe_delay_threshold
+            >= self.major_delay_threshold
+            >= self.minor_delay_threshold
+            >= MIN_DELAY_THRESHOLD
+        ):
+            _LOGGER.warning(
+                "Invalid delay threshold hierarchy detected: "
+                "severe (%s) >= major (%s) >= minor (%s) >= %s. "
+                "Resetting to defaults",
+                self.severe_delay_threshold,
+                self.major_delay_threshold,
+                self.minor_delay_threshold,
+                MIN_DELAY_THRESHOLD,
+            )
+            self.severe_delay_threshold = DEFAULT_SEVERE_DELAY_THRESHOLD
+            self.major_delay_threshold = DEFAULT_MAJOR_DELAY_THRESHOLD
             self.minor_delay_threshold = DEFAULT_MINOR_DELAY_THRESHOLD
 
         # Station names (will be populated on first update)
@@ -144,10 +170,12 @@ class NationalRailDataUpdateCoordinator(DataUpdateCoordinator):
         _LOGGER.debug("Starting data update for %s -> %s", self.origin, self.destination)
 
         # Update interval may have changed (e.g., switching between peak/off-peak/night)
-        new_interval = self._get_update_interval()
-        if new_interval != self.update_interval:
-            _LOGGER.debug("Updating interval from %s to %s", self.update_interval, new_interval)
-            self.update_interval = new_interval
+        # Use async lock to prevent race conditions with concurrent updates
+        async with self._update_interval_lock:
+            new_interval = self._get_update_interval()
+            if new_interval != self.update_interval:
+                _LOGGER.debug("Updating interval from %s to %s", self.update_interval, new_interval)
+                self.update_interval = new_interval
 
         try:
             _LOGGER.debug(
@@ -236,9 +264,12 @@ class NationalRailDataUpdateCoordinator(DataUpdateCoordinator):
                 continue
 
             # Get departure time (prefer expected, fallback to scheduled)
-            departure_time = service.get("expected_departure") or service.get("scheduled_departure")
+            if "expected_departure" in service:
+                departure_time = service["expected_departure"]
+            else:
+                departure_time = service.get("scheduled_departure")
 
-            if not departure_time or ":" not in departure_time:
+            if not departure_time or not _TIME_FORMAT_RE.match(departure_time):
                 # If we can't parse the time, keep the service
                 filtered_services.append(service)
                 continue

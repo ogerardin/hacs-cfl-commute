@@ -97,6 +97,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Unload platforms
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        # Clean up API resources before removing coordinator
+        coordinator = hass.data[DOMAIN][entry.entry_id]
+        await coordinator.api.close()
+
         hass.data[DOMAIN].pop(entry.entry_id)
 
     return unload_ok
