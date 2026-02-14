@@ -231,12 +231,21 @@ class NationalRailDataUpdateCoordinator(DataUpdateCoordinator):
                                 age.total_seconds() / 3600
                             )
                             raise UpdateFailed(f"Failed to fetch data and cached data too old: {err}") from err
-                except (ValueError, TypeError):
-                    pass
+                    else:
+                        _LOGGER.error(
+                            "Failed to parse last_updated timestamp '%s', cannot verify data age",
+                            self.data.get("last_updated")
+                        )
+                except (ValueError, TypeError) as parse_err:
+                    _LOGGER.error(
+                        "Error parsing last_updated timestamp '%s': %s - cannot verify data age",
+                        self.data.get("last_updated"),
+                        parse_err
+                    )
 
             # Otherwise, return last known data if available and recent
             if self.data:
-                _LOGGER.warning("Using last known data after failed update (data age: recent)")
+                _LOGGER.warning("Using last known data after failed update (data age: unverified)")
                 return self.data
 
             raise UpdateFailed(f"Failed to fetch data: {err}") from err
