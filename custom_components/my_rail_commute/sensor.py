@@ -389,9 +389,18 @@ class TrainSensor(NationalRailCommuteEntity, SensorEntity):
             current_platform = train.get("platform") or ""
             current_service_id = train.get("service_id")
 
-            # Handle platform change detection for the same service
-            # Only track platform changes if both current and previous service have valid IDs
-            if current_service_id and self._current_service_id and current_service_id == self._current_service_id:
+            # Validate service_id is not empty/None before tracking
+            # Empty or None service_id cannot be reliably used for platform change detection
+            if not current_service_id or (isinstance(current_service_id, str) and not current_service_id.strip()):
+                # Invalid service_id - reset tracking and skip platform change detection
+                _LOGGER.debug(
+                    "Train %d: Invalid service_id (empty/None), skipping platform tracking",
+                    self._train_number,
+                )
+                self._platform_changed = False
+                self._previous_platform = None
+                self._current_service_id = None
+            elif self._current_service_id and current_service_id == self._current_service_id:
                 # Same service - check for platform change
                 if self._previous_platform != current_platform:
                     if self._previous_platform is not None:
@@ -604,9 +613,17 @@ class NextTrainSensor(NationalRailCommuteEntity, SensorEntity):
             current_platform = train.get("platform") or ""
             current_service_id = train.get("service_id")
 
-            # Handle platform change detection for the same service
-            # Only track platform changes if both current and previous service have valid IDs
-            if current_service_id and self._current_service_id and current_service_id == self._current_service_id:
+            # Validate service_id is not empty/None before tracking
+            # Empty or None service_id cannot be reliably used for platform change detection
+            if not current_service_id or (isinstance(current_service_id, str) and not current_service_id.strip()):
+                # Invalid service_id - reset tracking and skip platform change detection
+                _LOGGER.debug(
+                    "Next train: Invalid service_id (empty/None), skipping platform tracking",
+                )
+                self._platform_changed = False
+                self._previous_platform = None
+                self._current_service_id = None
+            elif self._current_service_id and current_service_id == self._current_service_id:
                 # Same service - check for platform change
                 if self._previous_platform != current_platform:
                     if self._previous_platform is not None:

@@ -225,7 +225,7 @@ def test_platform_change_from_tba_unit():
 
 
 def test_platform_change_no_service_id():
-    """Unit test for handling missing service_id."""
+    """Unit test for handling missing/invalid service_id."""
     # Create a mock coordinator
     mock_coordinator = MagicMock()
     mock_entry = MagicMock()
@@ -238,7 +238,7 @@ def test_platform_change_no_service_id():
     sensor.hass = MagicMock()
     sensor.async_write_ha_state = MagicMock()
 
-    # Test: Update with missing service_id
+    # Test 1: Update with missing service_id (None)
     mock_coordinator.data = {
         "services": [
             {
@@ -250,8 +250,42 @@ def test_platform_change_no_service_id():
     }
     sensor._handle_coordinator_update()
 
-    # Should still set platform but not track service
-    assert sensor._previous_platform == "3"
+    # Should reset tracking when service_id is None
+    assert sensor._previous_platform is None
+    assert sensor._current_service_id is None
+    assert sensor._platform_changed is False
+
+    # Test 2: Update with empty string service_id
+    mock_coordinator.data = {
+        "services": [
+            {
+                "platform": "4",
+                "service_id": "",
+                "scheduled_departure": "08:40",
+            }
+        ]
+    }
+    sensor._handle_coordinator_update()
+
+    # Should reset tracking when service_id is empty string
+    assert sensor._previous_platform is None
+    assert sensor._current_service_id is None
+    assert sensor._platform_changed is False
+
+    # Test 3: Update with whitespace-only service_id
+    mock_coordinator.data = {
+        "services": [
+            {
+                "platform": "5",
+                "service_id": "   ",
+                "scheduled_departure": "08:45",
+            }
+        ]
+    }
+    sensor._handle_coordinator_update()
+
+    # Should reset tracking when service_id is whitespace-only
+    assert sensor._previous_platform is None
     assert sensor._current_service_id is None
     assert sensor._platform_changed is False
 
