@@ -15,6 +15,7 @@ CONF_NIGHT_UPDATES: Final = "night_updates"
 CONF_SEVERE_DELAY_THRESHOLD: Final = "severe_delay_threshold"
 CONF_MAJOR_DELAY_THRESHOLD: Final = "major_delay_threshold"
 CONF_MINOR_DELAY_THRESHOLD: Final = "minor_delay_threshold"
+CONF_DEPARTED_TRAIN_GRACE_PERIOD: Final = "departed_train_grace_period"
 
 # Legacy config keys (for migration)
 CONF_DISRUPTION_SINGLE_DELAY: Final = "disruption_single_delay"
@@ -30,12 +31,15 @@ DEFAULT_TIME_WINDOW: Final = 60
 DEFAULT_NUM_SERVICES: Final = 3
 DEFAULT_NIGHT_UPDATES: Final = False
 DEFAULT_NAME: Final = "My Rail Commute"
+DEFAULT_DEPARTED_TRAIN_GRACE_PERIOD: Final = 5  # minutes
 
 # Limits
 MIN_TIME_WINDOW: Final = 15
 MAX_TIME_WINDOW: Final = 120
 MIN_NUM_SERVICES: Final = 1
 MAX_NUM_SERVICES: Final = 10
+MIN_GRACE_PERIOD: Final = 0  # minutes
+MAX_GRACE_PERIOD: Final = 15  # minutes
 
 # Update intervals (in minutes)
 UPDATE_INTERVAL_PEAK: Final = timedelta(minutes=2)

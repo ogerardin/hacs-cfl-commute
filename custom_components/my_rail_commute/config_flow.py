@@ -21,6 +21,7 @@ from .api import (
 )
 from .const import (
     CONF_COMMUTE_NAME,
+    CONF_DEPARTED_TRAIN_GRACE_PERIOD,
     CONF_DESTINATION,
     CONF_DISRUPTION_MULTIPLE_COUNT,
     CONF_DISRUPTION_MULTIPLE_DELAY,
@@ -32,6 +33,7 @@ from .const import (
     CONF_ORIGIN,
     CONF_SEVERE_DELAY_THRESHOLD,
     CONF_TIME_WINDOW,
+    DEFAULT_DEPARTED_TRAIN_GRACE_PERIOD,
     DEFAULT_MAJOR_DELAY_THRESHOLD,
     DEFAULT_MINOR_DELAY_THRESHOLD,
     DEFAULT_NAME,
@@ -41,9 +43,11 @@ from .const import (
     DEFAULT_TIME_WINDOW,
     DOMAIN,
     MAX_DELAY_THRESHOLD,
+    MAX_GRACE_PERIOD,
     MAX_NUM_SERVICES,
     MAX_TIME_WINDOW,
     MIN_DELAY_THRESHOLD,
+    MIN_GRACE_PERIOD,
     MIN_NUM_SERVICES,
     MIN_TIME_WINDOW,
 )
@@ -308,6 +312,7 @@ class NationalRailCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_SEVERE_DELAY_THRESHOLD: user_input[CONF_SEVERE_DELAY_THRESHOLD],
                     CONF_MAJOR_DELAY_THRESHOLD: user_input[CONF_MAJOR_DELAY_THRESHOLD],
                     CONF_MINOR_DELAY_THRESHOLD: user_input[CONF_MINOR_DELAY_THRESHOLD],
+                    CONF_DEPARTED_TRAIN_GRACE_PERIOD: user_input[CONF_DEPARTED_TRAIN_GRACE_PERIOD],
                 },
             )
 
@@ -383,6 +388,18 @@ class NationalRailCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_NIGHT_UPDATES,
                     default=DEFAULT_NIGHT_UPDATES,
                 ): selector.BooleanSelector(),
+                vol.Required(
+                    CONF_DEPARTED_TRAIN_GRACE_PERIOD,
+                    default=DEFAULT_DEPARTED_TRAIN_GRACE_PERIOD,
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=MIN_GRACE_PERIOD,
+                        max=MAX_GRACE_PERIOD,
+                        step=1,
+                        unit_of_measurement="minutes",
+                        mode=selector.NumberSelectorMode.SLIDER,
+                    ),
+                ),
             }
         )
 
@@ -539,6 +556,21 @@ class NationalRailCommuteOptionsFlow(config_entries.OptionsFlow):
                         current_data.get(CONF_NIGHT_UPDATES, DEFAULT_NIGHT_UPDATES),
                     ),
                 ): selector.BooleanSelector(),
+                vol.Required(
+                    CONF_DEPARTED_TRAIN_GRACE_PERIOD,
+                    default=options.get(
+                        CONF_DEPARTED_TRAIN_GRACE_PERIOD,
+                        current_data.get(CONF_DEPARTED_TRAIN_GRACE_PERIOD, DEFAULT_DEPARTED_TRAIN_GRACE_PERIOD),
+                    ),
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=MIN_GRACE_PERIOD,
+                        max=MAX_GRACE_PERIOD,
+                        step=1,
+                        unit_of_measurement="minutes",
+                        mode=selector.NumberSelectorMode.SLIDER,
+                    ),
+                ),
             }
         )
 

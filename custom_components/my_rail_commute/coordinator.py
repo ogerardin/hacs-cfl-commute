@@ -13,6 +13,7 @@ from homeassistant.util import dt as dt_util
 
 from .api import NationalRailAPI, NationalRailAPIError
 from .const import (
+    CONF_DEPARTED_TRAIN_GRACE_PERIOD,
     CONF_DESTINATION,
     CONF_DISRUPTION_MULTIPLE_COUNT,
     CONF_DISRUPTION_MULTIPLE_DELAY,
@@ -24,6 +25,7 @@ from .const import (
     CONF_ORIGIN,
     CONF_SEVERE_DELAY_THRESHOLD,
     CONF_TIME_WINDOW,
+    DEFAULT_DEPARTED_TRAIN_GRACE_PERIOD,
     DEFAULT_MAJOR_DELAY_THRESHOLD,
     DEFAULT_MINOR_DELAY_THRESHOLD,
     DEFAULT_SEVERE_DELAY_THRESHOLD,
@@ -77,6 +79,9 @@ class NationalRailDataUpdateCoordinator(DataUpdateCoordinator):
         self.time_window = int(config[CONF_TIME_WINDOW])
         self.num_services = int(config[CONF_NUM_SERVICES])
         self.night_updates_enabled = config.get(CONF_NIGHT_UPDATES, False)
+        self.departed_train_grace_period = int(
+            config.get(CONF_DEPARTED_TRAIN_GRACE_PERIOD, DEFAULT_DEPARTED_TRAIN_GRACE_PERIOD)
+        )
 
         # Delay thresholds (user-configurable)
         # Support migration from old config format
@@ -303,8 +308,9 @@ class NationalRailDataUpdateCoordinator(DataUpdateCoordinator):
                     time_diff_seconds = (departure_dt - current_dt).total_seconds()
 
                 # Keep the train if it hasn't departed yet
-                # Add a 2-minute grace period to account for update delays
-                if time_diff_seconds >= -120:  # -2 minutes
+                # Add a grace period to account for update delays and slight delays
+                grace_period_seconds = self.departed_train_grace_period * 60
+                if time_diff_seconds >= -grace_period_seconds:
                     filtered_services.append(service)
                 else:
                     _LOGGER.debug(
