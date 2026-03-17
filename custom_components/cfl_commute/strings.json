@@ -1,0 +1,81 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "My Rail Commute - API Authentication",
+        "description": "Enter your Rail Data Marketplace API key. You can register for free at {signup_url}\n\nNote: If you already have a commute configured, this step will be skipped automatically.",
+        "data": {
+          "api_key": "API Key"
+        }
+      },
+      "stations": {
+        "title": "Configure Route",
+        "description": "Enter the origin and destination station codes (3-letter CRS codes, e.g., PAD for Paddington).",
+        "data": {
+          "origin": "Origin Station (CRS Code)",
+          "destination": "Destination Station (CRS Code)"
+        }
+      },
+      "settings": {
+        "title": "Commute Settings",
+        "description": "Configure settings for your commute from {origin} to {destination}.",
+        "data": {
+          "commute_name": "Commute Name",
+          "time_window": "Time Window (minutes)",
+          "num_services": "Number of Services to Track",
+          "severe_delay_threshold": "Severe Disruption Threshold (minutes)",
+          "major_delay_threshold": "Major Delays Threshold (minutes)",
+          "minor_delay_threshold": "Minor Delays Threshold (minutes)",
+          "night_updates": "Enable Night-Time Updates"
+        }
+      },
+      "return_journey": {
+        "title": "Return Journey",
+        "description": "Would you also like to set up the return journey from {destination} to {origin}? It will use the same settings as this commute.",
+        "data": {
+          "add_return_journey": "Set up return journey"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Authentication failed. Please check your API key.",
+      "cannot_connect": "Unable to connect to Rail API. Please try again later.",
+      "invalid_station": "Invalid station code. Please use a valid 3-letter CRS code.",
+      "same_station": "Origin and destination stations must be different.",
+      "invalid_thresholds": "Delay thresholds must maintain hierarchy: Severe >= Major >= Minor >= 1 minute.",
+      "unknown": "An unexpected error occurred. Please try again."
+    },
+    "abort": {
+      "already_configured": "This route is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Update Commute Settings",
+        "description": "Modify your commute tracking settings.",
+        "data": {
+          "time_window": "Time Window (minutes)",
+          "num_services": "Number of Services to Track",
+          "severe_delay_threshold": "Severe Disruption Threshold (minutes)",
+          "major_delay_threshold": "Major Delays Threshold (minutes)",
+          "minor_delay_threshold": "Minor Delays Threshold (minutes)",
+          "night_updates": "Enable Night-Time Updates"
+        }
+      }
+    },
+    "error": {
+      "invalid_thresholds": "Delay thresholds must maintain hierarchy: Severe >= Major >= Minor >= 1 minute."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "disruption": {
+        "state": {
+          "on": "Yes",
+          "off": "No"
+        }
+      }
+    }
+  }
+}
