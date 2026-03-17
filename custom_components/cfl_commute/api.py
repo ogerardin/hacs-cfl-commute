@@ -37,7 +37,10 @@ class CFLCommuteClient:
 
     BASE_URL = "https://cdt.hafas.de/opendata/apiserver"
 
-    RAIL_OPERATORS = {"CFL", "EC", "IC", "TER", "TGV", "RE", "RB"}
+    # Train categories (not operators) - these are used for filtering
+    TRAIN_CATEGORIES = {"RB", "RE", "IC", "TER", "TGV", "EC", "Train"}
+    # Actual railway operators
+    RAIL_OPERATORS = {"CFL"}
     # Include bus operators for stations that only have bus data
     BUS_OPERATORS = {"AVL", "RGTR", "TICE", "Bus"}
 
@@ -134,18 +137,19 @@ class CFLCommuteClient:
             operator_info = product.get("operatorInfo", {})
             operator_name = operator_info.get("nameS", operator_info.get("name", ""))
 
-            # Check if it's a valid transport type
+            # Check if it's a valid transport type (train category or bus)
             cat_out = product.get("catOut", "")
-            if cat_out not in self.RAIL_OPERATORS and cat_out not in self.BUS_OPERATORS:
+            if (
+                cat_out not in self.TRAIN_CATEGORIES
+                and cat_out not in self.BUS_OPERATORS
+            ):
                 continue
 
-            # Determine operator
+            # Determine operator (use category if no operator info)
             if operator_name:
                 operator = operator_name
-            elif cat_out:
-                operator = cat_out
             else:
-                operator = "Unknown"
+                operator = cat_out  # Fallback to category like "RB"
 
             # Parse times
             scheduled_time = dep.get("time", "")

@@ -45,25 +45,27 @@ class TestRealAPI:
     @pytest.mark.asyncio
     async def test_departures_have_required_fields(self, client):
         """Test departure data structure."""
-        departures = await client.get_departures("200419015")
+        departures = await client.get_departures("200405060")
 
         if departures:
             dep = departures[0]
             assert dep.scheduled_departure
             assert dep.platform
             assert (
-                dep.operator in client.RAIL_OPERATORS
+                dep.operator in client.TRAIN_CATEGORIES
+                or dep.operator in client.RAIL_OPERATORS
                 or dep.operator in client.BUS_OPERATORS
             )
 
     @pytest.mark.asyncio
     async def test_rail_operators_only(self, client):
         """Test that only valid transport operators are returned."""
-        departures = await client.get_departures("200419015")
+        departures = await client.get_departures("200405060")
 
         for dep in departures:
             assert (
-                dep.operator in client.RAIL_OPERATORS
+                dep.operator in client.TRAIN_CATEGORIES
+                or dep.operator in client.RAIL_OPERATORS
                 or dep.operator in client.BUS_OPERATORS
             )
 

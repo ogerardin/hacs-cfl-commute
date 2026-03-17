@@ -15,8 +15,10 @@ class TestCFLCommuteClient:
         assert client.BASE_URL == "https://cdt.hafas.de/opendata/apiserver"
 
     def test_rail_operators_defined(self):
-        """Test that CFL is in rail operators."""
+        """Test that CFL train categories are defined."""
         client = CFLCommuteClient("test_key")
+        assert "RB" in client.TRAIN_CATEGORIES
+        assert "RE" in client.TRAIN_CATEGORIES
         assert "CFL" in client.RAIL_OPERATORS
 
     @pytest.mark.asyncio
@@ -64,7 +66,7 @@ class TestCFLCommuteClient:
                 {
                     "ProductAtStop": {
                         "name": "Train 1",
-                        "catOut": "CFL",
+                        "catOut": "RB",
                         "operatorInfo": {"nameS": "CFL"},
                     },
                     "time": "10:00",
@@ -90,8 +92,8 @@ class TestCFLCommuteClient:
             mock_request.return_value = mock_response
             departures = await client.get_departures("200426002")
 
-        # Both CFL (rail) and AVL (bus) should be included
+        # Both RB (train) and Bus should be included
         assert len(departures) == 2
         operators = [d.operator for d in departures]
-        assert "CFL" in operators
+        assert "CFL" in operators  # RB train has CFL operator
         assert "AVL" in operators
