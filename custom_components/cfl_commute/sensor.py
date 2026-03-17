@@ -207,11 +207,42 @@ class CFLCommuteBaseSensor(SensorEntity):
                     d.scheduled_departure,
                 )
 
-            self._departures = [
-                d
-                for d in departures
-                if self._destination_name.lower() in d.direction.lower()
-            ][: self._num_services]
+            # Filter departures - check both direction and calling points
+            filtered_departures = []
+            for d in departures:
+                # First check if direction matches
+                if self._destination_name.lower() in d.direction.lower():
+                    _LOGGER.debug(
+                        "Departure matched by direction: %s -> %s",
+                        d.train_number,
+                        d.direction,
+                    )
+                    filtered_departures.append(d)
+                    continue
+
+                # If no direction match, check calling points
+                if d.journey_ref:
+                    _LOGGER.debug(
+                        "Checking calling points for %s (ref: %s)",
+                        d.train_number,
+                        d.journey_ref,
+                    )
+                    calling_points = await self._client.get_journey_details(
+                        d.journey_ref
+                    )
+
+                    # Check if destination ID is in calling points
+                    for stop in calling_points:
+                        if stop.get("id") == self._destination_id:
+                            _LOGGER.debug(
+                                "Departure %s passes through %s",
+                                d.train_number,
+                                self._destination_name,
+                            )
+                            filtered_departures.append(d)
+                            break
+
+            self._departures = filtered_departures[: self._num_services]
 
             _LOGGER.debug("%d departures matched filter", len(self._departures))
 

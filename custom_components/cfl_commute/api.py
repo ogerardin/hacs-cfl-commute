@@ -1,8 +1,11 @@
 """API client for CFL mobiliteit.lu."""
 
+import logging
 from dataclasses import dataclass
 from typing import Optional
 import aiohttp
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -30,6 +33,7 @@ class Departure:
     is_cancelled: bool
     delay_minutes: int
     calling_points: list
+    journey_ref: str = ""
 
 
 class CFLCommuteClient:
@@ -175,6 +179,9 @@ class CFLCommuteClient:
             # Get direction
             direction = dep.get("direction", "")
 
+            # Get journey reference for fetching calling points
+            journey_ref = dep.get("JourneyDetailRef", {}).get("ref", "")
+
             departures.append(
                 Departure(
                     station_id=station_id,
@@ -188,10 +195,60 @@ class CFLCommuteClient:
                     is_cancelled=is_cancelled,
                     delay_minutes=delay_minutes,
                     calling_points=[],
+                    journey_ref=journey_ref,
                 )
             )
 
         return departures[:10]
+
+    async def get_journey_details(self, journey_ref: str) -> list[dict]:
+        """Get journey details to find calling points.
+
+        Args:
+            journey_ref: Journey reference from departure (e.g., "1|1735|16|82|17032026")
+
+        Returns:
+            List of stop dictionaries with id, name, and arrival time
+        """
+        url = f"{self.BASE_URL}/journeyDetail"
+        params = {
+            "accessId": self._api_key,
+            "ref": journey_ref,
+            "format": "json",
+        }
+
+        try:
+            data = await self._request(url, params)
+            stops = data.get("JourneyDetail", {}).get("Stops", {}).get("Stop", [])
+
+            if isinstance(stops, dict):
+                stops = [stops]
+
+            calling_points = []
+            for stop in stops:
+                stop_id = stop.get("extId", "")
+                # Parse numeric ID from complex format
+                if not stop_id:
+                    stop_id_full = stop.get("id", "")
+                    if "L=" in stop_id_full:
+                        parts = stop_id_full.split("@")
+                        for part in parts:
+                            if part.startswith("L="):
+                                stop_id = part[2:]
+                                break
+
+                calling_points.append(
+                    {
+                        "id": stop_id,
+                        "name": stop.get("name", ""),
+                        "arr_time": stop.get("arrTime", stop.get("depTime", "")),
+                    }
+                )
+
+            return calling_points
+        except Exception as e:
+            _LOGGER.error(f"Failed to fetch journey details: {e}")
+            return []
 
     def _extract_calling_points(self, dep: dict) -> list[str]:
         """Extract calling points from departure data."""
