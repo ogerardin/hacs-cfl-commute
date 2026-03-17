@@ -1,6 +1,6 @@
 # CFL Commute
 
-Home Assistant integration for tracking Luxembourg CFL train commutes.
+Home Assistant integration for tracking Luxembourg CFL train commutes. Fork of [adamf83/my-rail-commute](https://github.com/adamf83/my-rail-commute).
 
 ## Installation
 
@@ -8,7 +8,7 @@ Home Assistant integration for tracking Luxembourg CFL train commutes.
 1. Open HACS in Home Assistant
 2. Go to Integrations
 3. Click the three dots → Custom repositories
-4. Add `https://github.com/olivier/hacs-cfl-commute`
+4. Add `https://github.com/ogerardin/hacs-cfl-commute`
 5. Select "Integration"
 6. Click Add
 7. Restart Home Assistant
@@ -36,7 +36,7 @@ Get a free API key by emailing: `opendata-api@atp.etat.lu`
 
 ## Support
 
-Issues: https://github.com/olivier/hacs-cfl-commute/issues
+Issues: https://github.com/ogerardin/hacs-cfl-commute/issues
 
 ## Running Tests
 
