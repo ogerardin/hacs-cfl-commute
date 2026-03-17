@@ -116,7 +116,21 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            if "station_query" in user_input:
+            # Check for station selection FIRST - takes priority over search
+            if "station" in user_input and user_input["station"]:
+                station_id = user_input["station"]
+                station_name = next(
+                    (
+                        r["label"]
+                        for r in self._origin_results
+                        if r["value"] == station_id
+                    ),
+                    station_id,
+                )
+                self._origin_station = {"id": station_id, "name": station_name}
+                return await self.async_step_destination()
+            # Then check for search query
+            elif "station_query" in user_input:
                 query = user_input["station_query"]
                 if query and self._client:
                     self._origin_results = await self._search_stations(
@@ -138,18 +152,6 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     errors=errors,
                     description_placeholders={"step": "origin"},
                 )
-            elif "station" in user_input:
-                station_id = user_input["station"]
-                station_name = next(
-                    (
-                        r["label"]
-                        for r in self._origin_results
-                        if r["value"] == station_id
-                    ),
-                    station_id,
-                )
-                self._origin_station = {"id": station_id, "name": station_name}
-                return await self.async_step_destination()
 
         return self.async_show_form(
             step_id="origin",
@@ -169,7 +171,21 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            if "station_query" in user_input:
+            # Check for station selection FIRST - takes priority over search
+            if "station" in user_input and user_input["station"]:
+                station_id = user_input["station"]
+                station_name = next(
+                    (
+                        r["label"]
+                        for r in self._destination_results
+                        if r["value"] == station_id
+                    ),
+                    station_id,
+                )
+                self._destination_station = {"id": station_id, "name": station_name}
+                return await self.async_step_settings()
+            # Then check for search query
+            elif "station_query" in user_input:
                 query = user_input["station_query"]
                 if query and self._client:
                     self._destination_results = await self._search_stations(
@@ -191,18 +207,6 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     errors=errors,
                     description_placeholders={"step": "destination"},
                 )
-            elif "station" in user_input:
-                station_id = user_input["station"]
-                station_name = next(
-                    (
-                        r["label"]
-                        for r in self._destination_results
-                        if r["value"] == station_id
-                    ),
-                    station_id,
-                )
-                self._destination_station = {"id": station_id, "name": station_name}
-                return await self.async_step_settings()
 
         return self.async_show_form(
             step_id="destination",

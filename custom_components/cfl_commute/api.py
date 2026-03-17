@@ -57,10 +57,13 @@ class CFLCommuteClient:
 
     async def search_stations(self, query: str) -> list[Station]:
         """Search for stations by name."""
-        url = f"{self.BASE_URL}/location.name"
+        url = f"{self.BASE_URL}/location.nearbystops"
         params = {
             "accessId": self._api_key,
-            "q": query,
+            "originCoordLong": "6.09528",
+            "originCoordLat": "49.77723",
+            "maxNo": "5000",
+            "r": "100000",
             "format": "json",
         }
 
@@ -68,14 +71,20 @@ class CFLCommuteClient:
 
         stations = []
         # Handle different response formats
-        location_data = data.get("LocationList", {}).get("StopLocation", [])
+        location_data = data.get("stopLocationOrCoordLocation", [])
 
         if isinstance(location_data, dict):
             location_data = [location_data]
 
-        for stop in location_data:
+        for loc in location_data:
+            stop = loc.get("StopLocation")
+            if not stop:
+                continue
+
             # Extract station name
             name = stop.get("name", "")
+            if query.lower() not in name.lower():
+                continue
 
             # Extract ID - could be in 'id' or 'extId'
             station_id = stop.get("id", stop.get("extId", ""))

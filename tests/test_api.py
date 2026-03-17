@@ -27,24 +27,26 @@ class TestCFLCommuteClient:
         client = CFLCommuteClient("test_api_key")
 
         mock_response = {
-            "LocationList": {
-                "StopLocation": [
-                    {
+            "stopLocationOrCoordLocation": [
+                {
+                    "StopLocation": {
                         "id": "A=1@O=Luxembourg@X=6114948@Y=49626164@U=82@L=200426002@",
                         "extId": "200426002",
                         "name": "Luxembourg",
                         "lon": 6.1,
                         "lat": 49.6,
-                    },
-                    {
+                    }
+                },
+                {
+                    "StopLocation": {
                         "id": "A=1@O=Luxembourg Airport@X=6200000@Y=4960000@U=82@L=200426003@",
                         "extId": "200426003",
                         "name": "Luxembourg Airport",
                         "lon": 6.2,
                         "lat": 49.6,
-                    },
-                ]
-            }
+                    }
+                },
+            ]
         }
 
         with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
