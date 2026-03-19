@@ -119,6 +119,8 @@ class CFLCommuteClient:
         station_id: str,
         lang: str = "en",
         time_window: int = 60,
+        date: str | None = None,
+        time: str | None = None,
     ) -> list[Departure]:
         """Get departures for a station, filtered by time window."""
         url = f"{self.BASE_URL}/departureBoard"
@@ -129,6 +131,12 @@ class CFLCommuteClient:
             "format": "json",
             "passlist": "1",  # Include all stops for this journey
         }
+
+        # Add date/time parameters if provided (format: YYYY-MM-DD, HH:MM)
+        if date:
+            params["date"] = date
+        if time:
+            params["time"] = time
 
         data = await self._request(url, params)
 

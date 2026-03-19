@@ -1,7 +1,7 @@
 """Data update coordinator for CFL Commute integration."""
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -85,10 +85,17 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
                 self.destination_name,
             )
 
+            # Get current time (format: YYYY-MM-DD, HH:MM as required by API)
+            now = dt_util.now()
+            date_str = now.strftime("%Y-%m-%d")
+            time_str = now.strftime("%H:%M")
+
             # Fetch departures with passlist to get all stops
             departures = await self.api.get_departures(
                 self.origin_id,
                 time_window=self.time_window,
+                date=date_str,
+                time=time_str,
             )
 
             _LOGGER.debug("API returned %d departures", len(departures))
