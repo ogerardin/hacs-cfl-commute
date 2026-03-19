@@ -1,13 +1,13 @@
 """Data update coordinator for CFL Commute integration."""
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .api import CFLCommuteClient
+from .api import CFLCommuteClient, Departure
 from .const import (
     CONF_NIGHT_UPDATES,
     CONF_TIME_WINDOW,
@@ -23,7 +23,7 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator):
+class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
     """Coordinator to manage CFL API data updates."""
 
     def __init__(
@@ -76,7 +76,7 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator):
         # Off-peak hours
         return timedelta(seconds=UPDATE_INTERVAL_OFFPEAK)
 
-    async def _async_update_data(self):
+    async def _async_update_data(self) -> list[Departure]:
         """Fetch data from CFL API."""
         try:
             _LOGGER.debug(
@@ -85,18 +85,28 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator):
                 self.destination_name,
             )
 
+            # Get current time in Luxembourg (CET/CEST)
+            now = dt_util.now()
+            date_str = now.strftime("%d.%m.%Y")
+            time_str = now.strftime("%H:%M")
+
             # Fetch departures with passlist to get all stops
             departures = await self.api.get_departures(
-                self.origin_id, time_window=self.time_window
+                self.origin_id,
+                time_window=self.time_window,
+                date=date_str,
+                time=time_str,
             )
 
             _LOGGER.debug("API returned %d departures", len(departures))
 
-            # Filter departures by destination
+            # Filter departures by destination (using name matching for robustness)
             filtered_departures = []
             for dep in departures:
-                # Check if destination ID is in the journey's stops
-                if self.destination_id in dep.stop_ids:
+                # Check if destination name is in the journey's calling points
+                calling_point_names = [name.lower() for name in dep.calling_points]
+                dest_name_lower = self.destination_name.lower()
+                if any(dest_name_lower in cp for cp in calling_point_names):
                     _LOGGER.debug(
                         "Departure %s to %s passes through %s",
                         dep.train_number,

@@ -53,7 +53,7 @@ class CFLCommuteClient:
         """Initialize the client."""
         self._api_key = api_key
 
-    async def _request(self, url: str, params: dict = None) -> dict:
+    async def _request(self, url: str, params: dict[str, str] | None = None) -> dict:
         """Make an API request."""
         async with aiohttp.ClientSession() as session:
             async with session.get(url, params=params) as response:
@@ -114,7 +114,12 @@ class CFLCommuteClient:
         return stations
 
     async def get_departures(
-        self, station_id: str, lang: str = "en", time_window: int = 60
+        self,
+        station_id: str,
+        lang: str = "en",
+        time_window: int = 60,
+        date: str | None = None,
+        time: str | None = None,
     ) -> list[Departure]:
         """Get departures for a station."""
         url = f"{self.BASE_URL}/departureBoard"
@@ -125,6 +130,12 @@ class CFLCommuteClient:
             "format": "json",
             "passlist": "1",  # Include all stops for this journey
         }
+
+        # Add date/time parameters if provided (format: DD.MM.YYYY, HH:MM)
+        if date:
+            params["date"] = date
+        if time:
+            params["time"] = time
 
         data = await self._request(url, params)
 
