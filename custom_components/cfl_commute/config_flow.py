@@ -243,7 +243,7 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_COMMUTE_NAME, default=default_name): str,
                     vol.Required(
                         CONF_TIME_WINDOW, default=DEFAULT_TIME_WINDOW
-                    ): vol.All(vol.Coerce(int), vol.Range(min=15, max=120)),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=15, max=180)),
                     vol.Required(
                         CONF_NUM_SERVICES, default=DEFAULT_NUM_SERVICES
                     ): vol.All(vol.Coerce(int), vol.Range(min=1, max=10)),
@@ -303,7 +303,7 @@ class CFLCommuteOptionsFlow(config_entries.OptionsFlow):
                 vol.Required(
                     CONF_TIME_WINDOW,
                     default=current_options.get(CONF_TIME_WINDOW, DEFAULT_TIME_WINDOW),
-                ): vol.All(vol.Coerce(int), vol.Range(min=15, max=120)),
+                ): vol.All(vol.Coerce(int), vol.Range(min=15, max=180)),
                 vol.Required(
                     CONF_NUM_SERVICES,
                     default=current_options.get(
@@ -349,7 +349,7 @@ class CFLCommuteOptionsFlow(config_entries.OptionsFlow):
                 vol.Required(
                     CONF_TIME_WINDOW,
                     default=current_options.get(CONF_TIME_WINDOW, DEFAULT_TIME_WINDOW),
-                ): vol.All(vol.Coerce(int), vol.Range(min=15, max=120)),
+                ): vol.All(vol.Coerce(int), vol.Range(min=15, max=180)),
                 vol.Required(
                     CONF_NUM_SERVICES,
                     default=current_options.get(
