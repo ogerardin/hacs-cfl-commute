@@ -198,3 +198,62 @@ class TestCFLCommuteClient:
         # Test that time_window=0 returns all departures
         filtered = client._filter_by_time_window(departures, 0)
         assert len(filtered) == 2
+
+    @pytest.mark.asyncio
+    async def test_delay_calculation_with_hh_mm_ss_format(self):
+        """Test that delay is correctly calculated with HH:MM:SS time format."""
+        client = CFLCommuteClient("test_api_key")
+
+        # API returns times in HH:MM:SS format
+        mock_response = {
+            "Departure": [
+                {
+                    "ProductAtStop": {
+                        "name": "RE 456",
+                        "catOut": "RE",
+                        "operatorInfo": {"nameS": "CFL"},
+                    },
+                    "time": "11:20:00",  # Scheduled 11:20
+                    "rtTime": "11:22:00",  # Expected 11:22 (2 min late)
+                    "direction": "Rodange",
+                    "num": "456",
+                },
+            ]
+        }
+
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = mock_response
+            departures = await client.get_departures("110109004", time_window=1440)
+
+        assert len(departures) == 1
+        assert departures[0].scheduled_departure == "11:20:00"
+        assert departures[0].expected_departure == "11:22:00"
+        assert departures[0].delay_minutes == 2  # Should be 2, not 0
+
+    @pytest.mark.asyncio
+    async def test_delay_calculation_on_time(self):
+        """Test that delay is 0 when train is on time."""
+        client = CFLCommuteClient("test_api_key")
+
+        mock_response = {
+            "Departure": [
+                {
+                    "ProductAtStop": {
+                        "name": "RE 456",
+                        "catOut": "RE",
+                        "operatorInfo": {"nameS": "CFL"},
+                    },
+                    "time": "11:20:00",
+                    "rtTime": "11:20:00",  # Same as scheduled
+                    "direction": "Rodange",
+                    "num": "456",
+                },
+            ]
+        }
+
+        with patch.object(client, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = mock_response
+            departures = await client.get_departures("110109004", time_window=1440)
+
+        assert len(departures) == 1
+        assert departures[0].delay_minutes == 0

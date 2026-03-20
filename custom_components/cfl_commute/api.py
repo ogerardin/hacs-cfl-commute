@@ -177,12 +177,12 @@ class CFLCommuteClient:
             delay_minutes = 0
             if scheduled_time and actual_time:
                 try:
-                    sched_h, sched_m = map(int, scheduled_time.split(":"))
-                    actual_h, actual_m = map(int, actual_time.split(":"))
-                    delay_minutes = (actual_h * 60 + actual_m) - (
-                        sched_h * 60 + sched_m
+                    sched_time = datetime.strptime(scheduled_time, "%H:%M:%S")
+                    actual_time_parsed = datetime.strptime(actual_time, "%H:%M:%S")
+                    delay_minutes = int(
+                        (actual_time_parsed - sched_time).total_seconds() / 60
                     )
-                except:
+                except ValueError:
                     delay_minutes = 0
 
             # Check if cancelled
