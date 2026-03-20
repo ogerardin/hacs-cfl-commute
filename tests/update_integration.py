@@ -165,21 +165,18 @@ async def main():
             success = await redownload_via_hacs(local_commit)
             if success:
                 print("✓ Redownload completed")
-
-                # Restart HA
-                await restart_ha()
-                if await wait_for_ha():
-                    print("✓ HA restarted successfully")
-                else:
-                    print("✗ HA restart failed")
+                # Note: HA restart is now handled manually by the user if needed
             else:
                 print("✗ Redownload failed")
+                print("→ Try restarting HA manually or updating via HACS UI")
+                sys.exit(1)
         else:
             print(f"✓ Version up to date ({local_commit})")
             print("→ No update needed")
     else:
         print("CFL Commute not installed")
         print("→ Please install via HACS first")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
