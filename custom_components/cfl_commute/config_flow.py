@@ -100,7 +100,6 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     selector.SelectSelectorConfig(
                         options=stations,
                         mode=selector.SelectSelectorMode.DROPDOWN,
-                        custom_value=True,
                     )
                 ),
             }
@@ -118,7 +117,11 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             if station_id:
                 station_name = next(
-                    (r.label for r in self._origin_stations if r.value == station_id),
+                    (
+                        r["label"]
+                        for r in self._origin_stations
+                        if r["value"] == station_id
+                    ),
                     station_id,
                 )
                 self._origin_station = {"id": station_id, "name": station_name}
@@ -133,7 +136,7 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     errors["station_query"] = "no_results"
 
         default_station = (
-            self._origin_stations[0].value if self._origin_stations else None
+            self._origin_stations[0]["value"] if self._origin_stations else None
         )
         return self.async_show_form(
             step_id="origin",
@@ -157,9 +160,9 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if station_id:
                 station_name = next(
                     (
-                        r.label
+                        r["label"]
                         for r in self._destination_stations
-                        if r.value == station_id
+                        if r["value"] == station_id
                     ),
                     station_id,
                 )
@@ -175,7 +178,9 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     errors["station_query"] = "no_results"
 
         default_station = (
-            self._destination_stations[0].value if self._destination_stations else None
+            self._destination_stations[0]["value"]
+            if self._destination_stations
+            else None
         )
         return self.async_show_form(
             step_id="destination",
