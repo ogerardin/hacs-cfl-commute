@@ -180,7 +180,9 @@ tests/
 ├── test_api.py          # API client tests
 ├── test_sensor.py       # Sensor logic tests
 ├── test_config_flow.py  # Config flow tests
-└── test_integration.py  # Real API tests
+├── test_integration.py  # Real API tests
+├── update_integration.py # Update integration via HACS
+└── test_setup_flow.py   # Test config flow via browser
 ```
 
 ---
@@ -213,6 +215,28 @@ pytestmark = pytest.mark.skipif(
     not os.environ.get("CFL_API_KEY"),
     reason="CFL_API_KEY environment variable not set"
 )
+```
+
+### Browser-Based Tests
+
+Browser tests use Playwright to test the Home Assistant UI:
+
+```bash
+# Install dependencies
+pip install playwright python-dotenv aiohttp
+playwright install chromium
+
+# Setup .env file with credentials
+# HA_TOKEN=<long-lived-access-token>
+# HA_USERNAME=<ha-username>
+# HA_PASSWORD=<ha-password>
+# CFL_API_KEY=<cfl-api-key>
+
+# Update integration (check version, restart HA)
+python tests/update_integration.py
+
+# Test setup flow (browser automation)
+python tests/test_setup_flow.py
 ```
 
 ---
