@@ -165,7 +165,13 @@ async def main():
             success = await redownload_via_hacs(local_commit)
             if success:
                 print("✓ Redownload completed")
-                # Note: HA restart is now handled manually by the user if needed
+                print("→ Restarting Home Assistant...")
+                await restart_ha()
+                if await wait_for_ha():
+                    print("✓ HA restarted successfully")
+                else:
+                    print("✗ HA restart failed")
+                    sys.exit(1)
             else:
                 print("✗ Redownload failed")
                 print("→ Try restarting HA manually or updating via HACS UI")
