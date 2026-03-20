@@ -84,10 +84,8 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.error(f"Station search error: {e}")
             return []
 
-    def _get_station_schema(
-        self, query: str, stations: list[dict], step: str
-    ) -> vol.Schema:
-        """Build schema with persisted query and dynamic dropdown."""
+    def _get_station_schema(self, query: str, stations: list[dict]) -> vol.Schema:
+        """Build schema with searchable dropdown."""
         return vol.Schema(
             {
                 vol.Required("station_query", default=query): str,
@@ -95,6 +93,7 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     selector.SelectSelectorConfig(
                         options=stations,
                         mode=selector.SelectSelectorMode.DROPDOWN,
+                        custom_value=True,
                     )
                 ),
             }
@@ -135,7 +134,7 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="origin",
             data_schema=self._get_station_schema(
-                self._origin_query, self._origin_stations, "origin"
+                self._origin_query, self._origin_stations
             ),
             errors=errors,
             description_placeholders={"step": "origin"},
@@ -176,7 +175,7 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="destination",
             data_schema=self._get_station_schema(
-                self._destination_query, self._destination_stations, "destination"
+                self._destination_query, self._destination_stations
             ),
             errors=errors,
             description_placeholders={"step": "destination"},
