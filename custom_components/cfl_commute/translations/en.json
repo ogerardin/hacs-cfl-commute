@@ -41,7 +41,9 @@
     "error": {
       "invalid_api_key": "Invalid API key",
       "station_search_failed": "Could not search stations",
-      "no_stations_found": "No stations found"
+      "no_stations_found": "No stations found",
+      "required": "This field is required",
+      "no_results": "No stations found for this search"
     }
   },
   "entity": {

@@ -48,8 +48,10 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._origin_station: dict = {}
         self._destination_station: dict = {}
         self._client: Optional[CFLCommuteClient] = None
-        self._origin_results: list = []
-        self._destination_results: list = []
+        self._origin_query: str = ""
+        self._origin_stations: list[dict] = []
+        self._destination_query: str = ""
+        self._destination_stations: list[dict] = []
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -82,6 +84,22 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.error(f"Station search error: {e}")
             return []
 
+    def _get_station_schema(
+        self, query: str, stations: list[dict], step: str
+    ) -> vol.Schema:
+        """Build schema with persisted query and dynamic dropdown."""
+        return vol.Schema(
+            {
+                vol.Required("station_query", default=query): str,
+                vol.Optional("station"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=stations,
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                    )
+                ),
+            }
+        )
+
     async def async_step_origin(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
@@ -89,49 +107,35 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            # Check for station selection FIRST - takes priority over search
-            if "station" in user_input and user_input["station"]:
-                station_id = user_input["station"]
+            station_id = user_input.get("station")
+            station_query = user_input.get("station_query", "").strip()
+
+            if station_id:
                 station_name = next(
                     (
                         r["label"]
-                        for r in self._origin_results
+                        for r in self._origin_stations
                         if r["value"] == station_id
                     ),
                     station_id,
                 )
                 self._origin_station = {"id": station_id, "name": station_name}
                 return await self.async_step_destination()
-            # Then check for search query
-            elif "station_query" in user_input:
-                query = user_input["station_query"]
-                if query and self._client:
-                    self._origin_results = await self._search_stations(
-                        query, self._client
-                    )
-                return self.async_show_form(
-                    step_id="origin",
-                    data_schema=vol.Schema(
-                        {
-                            vol.Required("station_query"): str,
-                            vol.Optional("station"): selector.SelectSelector(
-                                selector.SelectSelectorConfig(
-                                    options=self._origin_results,
-                                    mode=selector.SelectSelectorMode.DROPDOWN,
-                                )
-                            ),
-                        }
-                    ),
-                    errors=errors,
-                    description_placeholders={"step": "origin"},
+
+            if station_query:
+                self._origin_query = station_query
+                self._origin_stations = await self._search_stations(
+                    station_query, self._client
                 )
+                if not self._origin_stations:
+                    errors["station_query"] = "no_results"
+            else:
+                errors["station_query"] = "required"
 
         return self.async_show_form(
             step_id="origin",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("station_query"): str,
-                }
+            data_schema=self._get_station_schema(
+                self._origin_query, self._origin_stations, "origin"
             ),
             errors=errors,
             description_placeholders={"step": "origin"},
@@ -144,49 +148,35 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            # Check for station selection FIRST - takes priority over search
-            if "station" in user_input and user_input["station"]:
-                station_id = user_input["station"]
+            station_id = user_input.get("station")
+            station_query = user_input.get("station_query", "").strip()
+
+            if station_id:
                 station_name = next(
                     (
                         r["label"]
-                        for r in self._destination_results
+                        for r in self._destination_stations
                         if r["value"] == station_id
                     ),
                     station_id,
                 )
                 self._destination_station = {"id": station_id, "name": station_name}
                 return await self.async_step_settings()
-            # Then check for search query
-            elif "station_query" in user_input:
-                query = user_input["station_query"]
-                if query and self._client:
-                    self._destination_results = await self._search_stations(
-                        query, self._client
-                    )
-                return self.async_show_form(
-                    step_id="destination",
-                    data_schema=vol.Schema(
-                        {
-                            vol.Required("station_query"): str,
-                            vol.Optional("station"): selector.SelectSelector(
-                                selector.SelectSelectorConfig(
-                                    options=self._destination_results,
-                                    mode=selector.SelectSelectorMode.DROPDOWN,
-                                )
-                            ),
-                        }
-                    ),
-                    errors=errors,
-                    description_placeholders={"step": "destination"},
+
+            if station_query:
+                self._destination_query = station_query
+                self._destination_stations = await self._search_stations(
+                    station_query, self._client
                 )
+                if not self._destination_stations:
+                    errors["station_query"] = "no_results"
+            else:
+                errors["station_query"] = "required"
 
         return self.async_show_form(
             step_id="destination",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("station_query"): str,
-                }
+            data_schema=self._get_station_schema(
+                self._destination_query, self._destination_stations, "destination"
             ),
             errors=errors,
             description_placeholders={"step": "destination"},
@@ -285,12 +275,10 @@ class CFLCommuteOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        # Get current options from config entry
         config_entry = self.hass.config_entries.async_get_entry(self.handler)
         if config_entry is None:
             return self.async_abort(reason="Config entry not found")
 
-        # Use options if available, otherwise fall back to data
         current_options = (
             dict(config_entry.options)
             if config_entry.options
@@ -333,56 +321,6 @@ class CFLCommuteOptionsFlow(config_entries.OptionsFlow):
                     ),
                 ): bool,
             }
-        )
-
-        return self.async_show_form(
-            step_id="init",
-            data_schema=data_schema,
-            errors=errors,
-        )
-
-        data_schema = vol.Schema(
-            {
-                vol.Optional(CONF_COMMUTE_NAME): str,
-                vol.Required(
-                    CONF_TIME_WINDOW,
-                    default=current_options.get(CONF_TIME_WINDOW, DEFAULT_TIME_WINDOW),
-                ): vol.All(vol.Coerce(int), vol.Range(min=15, max=180)),
-                vol.Required(
-                    CONF_NUM_TRAINS,
-                    default=current_options.get(CONF_NUM_TRAINS, DEFAULT_NUM_TRAINS),
-                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=10)),
-                vol.Required(
-                    CONF_MINOR_THRESHOLD,
-                    default=current_options.get(
-                        CONF_MINOR_THRESHOLD, DEFAULT_MINOR_THRESHOLD
-                    ),
-                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=60)),
-                vol.Required(
-                    CONF_MAJOR_THRESHOLD,
-                    default=current_options.get(
-                        CONF_MAJOR_THRESHOLD, DEFAULT_MAJOR_THRESHOLD
-                    ),
-                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=60)),
-                vol.Required(
-                    CONF_SEVERE_THRESHOLD,
-                    default=current_options.get(
-                        CONF_SEVERE_THRESHOLD, DEFAULT_SEVERE_THRESHOLD
-                    ),
-                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=60)),
-                vol.Required(
-                    CONF_NIGHT_UPDATES,
-                    default=current_options.get(
-                        CONF_NIGHT_UPDATES, DEFAULT_NIGHT_UPDATES
-                    ),
-                ): bool,
-            }
-        )
-
-        return self.async_show_form(
-            step_id="init",
-            data_schema=data_schema,
-            errors=errors,
         )
 
         return self.async_show_form(
