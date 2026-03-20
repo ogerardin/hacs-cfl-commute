@@ -1,12 +1,29 @@
 """API client for CFL mobiliteit.lu."""
 
+import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 import aiohttp
 
 _LOGGER = logging.getLogger(__name__)
+
+RATE_LIMIT_PER_MINUTE = 10
+RATE_LIMIT_PER_HOUR = 100
+RATE_LIMIT_WARNING_THRESHOLD = 0.8
+
+
+class CFLAPIError(Exception):
+    """Exception raised for CFL API errors."""
+
+    pass
+
+
+class RateLimitExceeded(CFLAPIError):
+    """Exception raised when rate limit is exceeded."""
+
+    pass
 
 
 @dataclass
@@ -53,13 +70,92 @@ class CFLCommuteClient:
     def __init__(self, api_key: str):
         """Initialize the client."""
         self._api_key = api_key
+        self._session: aiohttp.ClientSession | None = None
+        self._rate_limit_calls_minute: list[float] = []
+        self._rate_limit_calls_hour: list[float] = []
+
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """Get or create aiohttp session."""
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession()
+        return self._session
+
+    def _cleanup_rate_limit_calls(self) -> None:
+        """Remove expired entries from rate limit tracking."""
+        now = time.time()
+        self._rate_limit_calls_minute = [
+            t for t in self._rate_limit_calls_minute if now - t < 60
+        ]
+        self._rate_limit_calls_hour = [
+            t for t in self._rate_limit_calls_hour if now - t < 3600
+        ]
+
+    def _check_rate_limit(self) -> None:
+        """Check if we're approaching rate limits and log warning."""
+        self._cleanup_rate_limit_calls()
+
+        minute_count = len(self._rate_limit_calls_minute)
+        hour_count = len(self._rate_limit_calls_hour)
+
+        minute_pct = minute_count / RATE_LIMIT_PER_MINUTE
+        hour_pct = hour_count / RATE_LIMIT_PER_HOUR
+
+        if minute_pct >= RATE_LIMIT_WARNING_THRESHOLD:
+            _LOGGER.warning(
+                "Approaching per-minute rate limit: %d/%d (%.0f%%)",
+                minute_count,
+                RATE_LIMIT_PER_MINUTE,
+                minute_pct * 100,
+            )
+        if hour_pct >= RATE_LIMIT_WARNING_THRESHOLD:
+            _LOGGER.warning(
+                "Approaching per-hour rate limit: %d/%d (%.0f%%)",
+                hour_count,
+                RATE_LIMIT_PER_HOUR,
+                hour_pct * 100,
+            )
+
+        if minute_count >= RATE_LIMIT_PER_MINUTE:
+            raise RateLimitExceeded(
+                f"Per-minute rate limit reached ({RATE_LIMIT_PER_MINUTE} calls)"
+            )
+        if hour_count >= RATE_LIMIT_PER_HOUR:
+            raise RateLimitExceeded(
+                f"Per-hour rate limit reached ({RATE_LIMIT_PER_HOUR} calls)"
+            )
+
+    def _record_api_call(self) -> None:
+        """Record an API call for rate limit tracking."""
+        now = time.time()
+        self._rate_limit_calls_minute.append(now)
+        self._rate_limit_calls_hour.append(now)
+
+    async def close(self) -> None:
+        """Close the aiohttp session."""
+        if self._session and not self._session.closed:
+            await self._session.close()
+            self._session = None
+            await asyncio.sleep(0.25)
 
     async def _request(self, url: str, params: dict[str, str] | None = None) -> dict:
         """Make an API request."""
-        async with aiohttp.ClientSession() as session:
+        self._check_rate_limit()
+
+        session = await self._get_session()
+        try:
             async with session.get(url, params=params) as response:
                 response.raise_for_status()
-                return await response.json()
+                try:
+                    return await response.json()
+                except (ValueError, aiohttp.ContentTypeError) as e:
+                    _LOGGER.error(
+                        "Invalid JSON response from API: %s. Response text: %s",
+                        e,
+                        await response.text()[:500],
+                    )
+                    raise CFLAPIError(f"Invalid JSON response: {e}") from e
+        finally:
+            self._record_api_call()
 
     async def search_stations(self, query: str) -> list[Station]:
         """Search for stations by name."""
@@ -179,9 +275,12 @@ class CFLCommuteClient:
                 try:
                     sched_time = datetime.strptime(scheduled_time, "%H:%M:%S")
                     actual_time_parsed = datetime.strptime(actual_time, "%H:%M:%S")
-                    delay_minutes = int(
-                        (actual_time_parsed - sched_time).total_seconds() / 60
-                    )
+                    delay_delta = (actual_time_parsed - sched_time).total_seconds() / 60
+                    if delay_delta < -720:
+                        delay_delta += 1440
+                    elif delay_delta > 720:
+                        delay_delta -= 1440
+                    delay_minutes = int(delay_delta)
                 except ValueError:
                     delay_minutes = 0
 

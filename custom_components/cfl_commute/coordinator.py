@@ -1,5 +1,6 @@
 """Data update coordinator for CFL Commute integration."""
 
+import asyncio
 import logging
 from datetime import datetime, timedelta
 
@@ -9,9 +10,14 @@ from homeassistant.util import dt as dt_util
 
 from .api import CFLCommuteClient, Departure
 from .const import (
+    CONF_MAJOR_THRESHOLD,
+    CONF_MINOR_THRESHOLD,
     CONF_NIGHT_UPDATES,
+    CONF_SEVERE_THRESHOLD,
     CONF_TIME_WINDOW,
-    CONF_NUM_TRAINS,
+    DEFAULT_MAJOR_THRESHOLD,
+    DEFAULT_MINOR_THRESHOLD,
+    DEFAULT_SEVERE_THRESHOLD,
     DOMAIN,
     UPDATE_INTERVAL_PEAK,
     UPDATE_INTERVAL_OFFPEAK,
@@ -45,6 +51,27 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
         self.config = config
         self.time_window = config.get(CONF_TIME_WINDOW, 60)
         self.night_updates_enabled = config.get(CONF_NIGHT_UPDATES, False)
+        self._update_lock = asyncio.Lock()
+
+        minor_threshold = config.get(CONF_MINOR_THRESHOLD, DEFAULT_MINOR_THRESHOLD)
+        major_threshold = config.get(CONF_MAJOR_THRESHOLD, DEFAULT_MAJOR_THRESHOLD)
+        severe_threshold = config.get(CONF_SEVERE_THRESHOLD, DEFAULT_SEVERE_THRESHOLD)
+
+        if not (minor_threshold <= major_threshold <= severe_threshold):
+            _LOGGER.warning(
+                "Invalid threshold hierarchy: minor=%d, major=%d, severe=%d. "
+                "Resetting to defaults.",
+                minor_threshold,
+                major_threshold,
+                severe_threshold,
+            )
+            minor_threshold = DEFAULT_MINOR_THRESHOLD
+            major_threshold = DEFAULT_MAJOR_THRESHOLD
+            severe_threshold = DEFAULT_SEVERE_THRESHOLD
+
+        self.minor_threshold = minor_threshold
+        self.major_threshold = major_threshold
+        self.severe_threshold = severe_threshold
 
         update_interval = self._get_update_interval()
 
@@ -75,6 +102,63 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
 
         # Off-peak hours
         return timedelta(seconds=UPDATE_INTERVAL_OFFPEAK)
+
+    def _filter_departed_trains(
+        self, departures: list[Departure], now: datetime
+    ) -> list[Departure]:
+        """Filter out departed trains from the list.
+
+        Keeps trains that:
+        - Have not departed yet (scheduled time > current time)
+        - Are cancelled (cancelled trains should remain visible)
+        - Have not exceeded the grace period (2 minutes)
+
+        Args:
+            departures: List of departures to filter
+            now: Current datetime
+
+        Returns:
+            Filtered list of departures
+        """
+        if not departures:
+            return departures
+
+        grace_period_seconds = 120
+        filtered = []
+
+        for dep in departures:
+            if dep.is_cancelled:
+                filtered.append(dep)
+                continue
+
+            if "expected_departure" in dep.__dict__ and dep.expected_departure:
+                try:
+                    dep_time = datetime.strptime(dep.expected_departure, "%H:%M:%S")
+                    dep_datetime = now.replace(
+                        hour=dep_time.hour,
+                        minute=dep_time.minute,
+                        second=dep_time.second,
+                    )
+                    if dep_datetime <= now + timedelta(seconds=grace_period_seconds):
+                        filtered.append(dep)
+                except ValueError:
+                    filtered.append(dep)
+            elif dep.scheduled_departure:
+                try:
+                    dep_time = datetime.strptime(dep.scheduled_departure, "%H:%M:%S")
+                    dep_datetime = now.replace(
+                        hour=dep_time.hour,
+                        minute=dep_time.minute,
+                        second=dep_time.second,
+                    )
+                    if dep_datetime <= now + timedelta(seconds=grace_period_seconds):
+                        filtered.append(dep)
+                except ValueError:
+                    filtered.append(dep)
+            else:
+                filtered.append(dep)
+
+        return filtered
 
     async def _async_update_data(self) -> list[Departure]:
         """Fetch data from CFL API."""
@@ -128,6 +212,13 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
                     "No departures matched. First departure calling points: %s",
                     departures[0].calling_points if departures else [],
                 )
+
+            # Filter departed trains
+            filtered_departures = self._filter_departed_trains(filtered_departures, now)
+
+            # Update interval with lock
+            async with self._update_lock:
+                self.update_interval = self._get_update_interval()
 
             return filtered_departures
 

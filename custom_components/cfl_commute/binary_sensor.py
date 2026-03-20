@@ -92,6 +92,10 @@ class CFLCommuteDisruptionSensor(CoordinatorEntity, BinarySensorEntity):
         return f"{self._commute_name}_has_disruption"
 
     @property
+    def translation_key(self) -> str:
+        return "has_disruption"
+
+    @property
     def is_on(self) -> bool:
         """Return true if disruption detected."""
         return self._get_status() != STATUS_NORMAL

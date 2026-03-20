@@ -36,17 +36,30 @@
           "severe_threshold": "Severe Disruption Threshold (min)",
           "night_updates": "Enable Night Updates"
         }
+      },
+      "return_journey": {
+        "title": "Return Journey",
+        "description": "Would you also like to track the return journey from {destination} to {origin}?",
+        "data": {
+          "add_return_journey": "Enable return journey"
+        }
       }
-    },
-    "error": {
-      "invalid_api_key": "Invalid API key",
-      "station_search_failed": "Could not search stations",
-      "no_stations_found": "No stations found",
-      "required": "This field is required",
-      "no_results": "No stations found for this search"
     }
   },
   "entity": {
+    "binary_sensor": {
+      "has_disruption": {
+        "state": {
+          "on": "Yes",
+          "off": "No"
+        },
+        "state_attributes": {
+          "disruption_reasons": {
+            "name": "Disruption Reasons"
+          }
+        }
+      }
+    },
     "sensor": {
       "cfl_commute": {
         "name": "CFL Commute {name}",

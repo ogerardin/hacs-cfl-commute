@@ -23,6 +23,7 @@ CONF_MINOR_THRESHOLD = "minor_threshold"
 CONF_MAJOR_THRESHOLD = "major_threshold"
 CONF_SEVERE_THRESHOLD = "severe_threshold"
 CONF_NIGHT_UPDATES = "night_updates"
+CONF_ADD_RETURN_JOURNEY = "add_return_journey"
 
 STATUS_NORMAL = "Normal"
 STATUS_MINOR = "Minor Delays"

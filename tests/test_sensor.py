@@ -1,6 +1,5 @@
 """Tests for sensor logic."""
 
-import pytest
 from custom_components.cfl_commute.const import (
     STATUS_NORMAL,
     STATUS_MINOR,

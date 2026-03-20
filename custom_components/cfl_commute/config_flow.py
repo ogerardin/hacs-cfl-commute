@@ -9,6 +9,7 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 from .api import CFLCommuteClient
 from .const import (
+    CONF_ADD_RETURN_JOURNEY,
     CONF_API_KEY,
     CONF_ORIGIN,
     CONF_DESTINATION,
@@ -52,6 +53,13 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._origin_stations: list[selector.SelectOptionDict] = []
         self._destination_query: str = ""
         self._destination_stations: list[selector.SelectOptionDict] = []
+        self._commute_name: str | None = None
+        self._time_window: int | None = None
+        self._num_trains: int | None = None
+        self._minor_threshold: int | None = None
+        self._major_threshold: int | None = None
+        self._severe_threshold: int | None = None
+        self._night_updates: bool | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -206,40 +214,26 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            origin_name = self._origin_station.get("name", "Origin")
-            destination_name = self._destination_station.get("name", "Destination")
-
-            return self.async_create_entry(
-                title=user_input.get(
-                    CONF_COMMUTE_NAME, f"{origin_name} → {destination_name}"
-                ),
-                data={
-                    CONF_API_KEY: self._api_key,
-                    CONF_ORIGIN: self._origin_station,
-                    CONF_DESTINATION: self._destination_station,
-                    CONF_COMMUTE_NAME: user_input.get(
-                        CONF_COMMUTE_NAME, f"{origin_name} → {destination_name}"
-                    ),
-                    CONF_TIME_WINDOW: user_input.get(
-                        CONF_TIME_WINDOW, DEFAULT_TIME_WINDOW
-                    ),
-                    CONF_NUM_TRAINS: user_input.get(
-                        CONF_NUM_TRAINS, DEFAULT_NUM_TRAINS
-                    ),
-                    CONF_MINOR_THRESHOLD: user_input.get(
-                        CONF_MINOR_THRESHOLD, DEFAULT_MINOR_THRESHOLD
-                    ),
-                    CONF_MAJOR_THRESHOLD: user_input.get(
-                        CONF_MAJOR_THRESHOLD, DEFAULT_MAJOR_THRESHOLD
-                    ),
-                    CONF_SEVERE_THRESHOLD: user_input.get(
-                        CONF_SEVERE_THRESHOLD, DEFAULT_SEVERE_THRESHOLD
-                    ),
-                    CONF_NIGHT_UPDATES: user_input.get(
-                        CONF_NIGHT_UPDATES, DEFAULT_NIGHT_UPDATES
-                    ),
-                },
+            self._commute_name = user_input.get(
+                CONF_COMMUTE_NAME,
+                f"{self._origin_station.get('name', 'Origin')} → {self._destination_station.get('name', 'Destination')}",
             )
+            self._time_window = user_input.get(CONF_TIME_WINDOW, DEFAULT_TIME_WINDOW)
+            self._num_trains = user_input.get(CONF_NUM_TRAINS, DEFAULT_NUM_TRAINS)
+            self._minor_threshold = user_input.get(
+                CONF_MINOR_THRESHOLD, DEFAULT_MINOR_THRESHOLD
+            )
+            self._major_threshold = user_input.get(
+                CONF_MAJOR_THRESHOLD, DEFAULT_MAJOR_THRESHOLD
+            )
+            self._severe_threshold = user_input.get(
+                CONF_SEVERE_THRESHOLD, DEFAULT_SEVERE_THRESHOLD
+            )
+            self._night_updates = user_input.get(
+                CONF_NIGHT_UPDATES, DEFAULT_NIGHT_UPDATES
+            )
+
+            return await self.async_step_return_journey()
 
         default_name = f"{self._origin_station.get('name', 'Origin')} → {self._destination_station.get('name', 'Destination')}"
 
@@ -269,6 +263,87 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 }
             ),
             errors=errors,
+        )
+
+    async def async_step_return_journey(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Offer to set up the reverse commute if it doesn't already exist."""
+        reverse_unique_id = (
+            f"{self._destination_station['id']}_{self._origin_station['id']}"
+        )
+        reverse_exists = any(
+            entry.unique_id == reverse_unique_id
+            for entry in self._async_current_entries()
+        )
+
+        if reverse_exists:
+            return self._create_entry()
+
+        if user_input is not None:
+            if user_input.get(CONF_ADD_RETURN_JOURNEY, False):
+                self.hass.async_create_task(
+                    self.hass.config_entries.flow.async_init(
+                        DOMAIN,
+                        context={"source": config_entries.SOURCE_IMPORT},
+                        data={
+                            CONF_API_KEY: self._api_key,
+                            CONF_ORIGIN: self._destination_station,
+                            CONF_DESTINATION: self._origin_station,
+                            CONF_COMMUTE_NAME: f"{self._destination_station.get('name', 'Destination')} → {self._origin_station.get('name', 'Origin')}",
+                            CONF_TIME_WINDOW: self._time_window,
+                            CONF_NUM_TRAINS: self._num_trains,
+                            CONF_MINOR_THRESHOLD: self._minor_threshold,
+                            CONF_MAJOR_THRESHOLD: self._major_threshold,
+                            CONF_SEVERE_THRESHOLD: self._severe_threshold,
+                            CONF_NIGHT_UPDATES: self._night_updates,
+                        },
+                    )
+                )
+            return self._create_entry()
+
+        return self.async_show_form(
+            step_id="return_journey",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_ADD_RETURN_JOURNEY, default=True
+                    ): selector.BooleanSelector(),
+                }
+            ),
+            description_placeholders={
+                "origin": self._origin_station.get("name", "Origin"),
+                "destination": self._destination_station.get("name", "Destination"),
+            },
+        )
+
+    async def async_step_import(self, user_input: dict[str, Any]) -> FlowResult:
+        """Handle automatic creation of a return journey config entry."""
+        await self.async_set_unique_id(
+            f"{user_input[CONF_ORIGIN]['id']}_{user_input[CONF_DESTINATION]['id']}"
+        )
+        self._abort_if_unique_id_configured()
+        return self.async_create_entry(
+            title=user_input[CONF_COMMUTE_NAME],
+            data=user_input,
+        )
+
+    def _create_entry(self) -> FlowResult:
+        """Create the config entry using stored instance variables."""
+        return self.async_create_entry(
+            title=self._commute_name or "",
+            data={
+                CONF_API_KEY: self._api_key,
+                CONF_ORIGIN: self._origin_station,
+                CONF_DESTINATION: self._destination_station,
+                CONF_COMMUTE_NAME: self._commute_name,
+                CONF_TIME_WINDOW: self._time_window,
+                CONF_NUM_TRAINS: self._num_trains,
+                CONF_MINOR_THRESHOLD: self._minor_threshold,
+                CONF_MAJOR_THRESHOLD: self._major_threshold,
+                CONF_SEVERE_THRESHOLD: self._severe_threshold,
+                CONF_NIGHT_UPDATES: self._night_updates,
+            },
         )
 
     @staticmethod

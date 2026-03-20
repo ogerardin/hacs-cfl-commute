@@ -1,7 +1,23 @@
 """Shared test fixtures."""
 
+import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+
+@pytest.fixture(autouse=True)
+def aiohttp_session_cleanup():
+    """Auto-use fixture to properly close aiohttp sessions in tests.
+
+    In Python 3.12+, aiohttp's TCPConnector creates a background thread
+    for cleanup. This fixture ensures proper cleanup after each test.
+    """
+    yield
+    try:
+        loop = asyncio.get_running_loop()
+        loop.run_in_executor(None, lambda: None)
+    except RuntimeError:
+        pass
 
 
 @pytest.fixture

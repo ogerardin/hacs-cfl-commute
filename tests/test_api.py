@@ -3,7 +3,7 @@
 import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, patch, MagicMock
-from custom_components.cfl_commute.api import CFLCommuteClient, Station, Departure
+from custom_components.cfl_commute.api import CFLCommuteClient, Departure
 
 
 class TestCFLCommuteClient:
