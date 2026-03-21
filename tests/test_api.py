@@ -4,6 +4,7 @@ import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, patch, MagicMock
 from custom_components.cfl_commute.api import CFLCommuteClient, Departure
+from custom_components.cfl_commute.util import format_time
 
 
 class TestCFLCommuteClient:
@@ -257,3 +258,31 @@ class TestCFLCommuteClient:
 
         assert len(departures) == 1
         assert departures[0].delay_minutes == 0
+
+
+class TestFormatTime:
+    """Test cases for format_time utility function."""
+
+    def test_format_time_with_seconds(self):
+        """Test formatting time string with seconds."""
+        assert format_time("01:10:00") == "01:10"
+
+    def test_format_time_without_seconds(self):
+        """Test formatting time string without seconds."""
+        assert format_time("01:10") == "01:10"
+
+    def test_format_time_empty_string(self):
+        """Test formatting empty string."""
+        assert format_time("") == ""
+
+    def test_format_time_none(self):
+        """Test formatting None."""
+        assert format_time(None) == ""
+
+    def test_format_time_short_string(self):
+        """Test formatting short time string."""
+        assert format_time("01") == "01"
+
+    def test_format_time_invalid(self):
+        """Test formatting invalid time string."""
+        assert format_time("invalid") == "inval"

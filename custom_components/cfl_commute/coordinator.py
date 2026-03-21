@@ -136,13 +136,7 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
         # API times are in Luxembourg local time (CET/CEST)
         # During winter: CET = UTC+1, during summer: CEST = UTC+2
         # We use a fixed +1 as a conservative estimate
-        lux_offset = LUXEMBOURG_TZ
-
-        # If 'now' has a timezone, use it; otherwise assume UTC
-        if now.tzinfo is not None:
-            now_tz = now.tzinfo
-        else:
-            now_tz = timezone.utc
+        # Note: LUXEMBOURG_TZ is used for the UTC offset calculation
 
         for dep in departures:
             if dep.is_cancelled:

@@ -8,6 +8,7 @@ from homeassistant.helpers.typing import ConfigType, StateType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import Departure
+from .util import format_time
 from .const import (
     CONF_COMMUTE_NAME,
     CONF_DESTINATION,
@@ -212,8 +213,9 @@ class CFLCommuteSummarySensor(CFLCommuteBaseSensor):
                 "total_trains": len(self.departures),
                 "all_trains": [
                     {
-                        "departure_time": d.expected_departure,
-                        "scheduled_departure": d.scheduled_departure,
+                        "train_number": d.train_number,
+                        "departure_time": format_time(d.expected_departure),
+                        "scheduled_departure": format_time(d.scheduled_departure),
                         "delay_minutes": d.delay_minutes,
                         "is_cancelled": d.is_cancelled,
                         "platform": d.platform,
@@ -340,14 +342,13 @@ class CFLCommuteNextTrainSensor(CFLCommuteBaseSensor):
             train = self.departures[0]
             attrs.update(
                 {
-                    "train_number": 1,
+                    "train_number": train.train_number,
                     "total_trains": len(self.departures),
-                    "departure_time": train.expected_departure,
-                    "scheduled_departure": train.scheduled_departure,
-                    "expected_departure": train.expected_departure,
+                    "departure_time": format_time(train.expected_departure),
+                    "scheduled_departure": format_time(train.scheduled_departure),
+                    "expected_departure": format_time(train.expected_departure),
                     "platform": train.platform,
                     "operator": train.operator,
-                    "train_id": train.train_number,
                     "delay_minutes": train.delay_minutes,
                     "is_cancelled": train.is_cancelled,
                     "calling_points": train.calling_points,
@@ -405,14 +406,13 @@ class CFLCommuteTrainSensor(CFLCommuteBaseSensor):
             train = self.departures[self._train_number - 1]
             attrs.update(
                 {
-                    "train_number": self._train_number,
+                    "train_number": train.train_number,
                     "total_trains": len(self.departures),
-                    "departure_time": train.expected_departure,
-                    "scheduled_departure": train.scheduled_departure,
-                    "expected_departure": train.expected_departure,
+                    "departure_time": format_time(train.expected_departure),
+                    "scheduled_departure": format_time(train.scheduled_departure),
+                    "expected_departure": format_time(train.expected_departure),
                     "platform": train.platform,
                     "operator": train.operator,
-                    "train_id": train.train_number,
                     "delay_minutes": train.delay_minutes,
                     "is_cancelled": train.is_cancelled,
                     "calling_points": train.calling_points,

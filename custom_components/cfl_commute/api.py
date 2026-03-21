@@ -313,7 +313,7 @@ class CFLCommuteClient:
                     station_id=station_id,
                     scheduled_departure=scheduled_time,
                     expected_departure=actual_time,
-                    platform=dep.get("platform", "TBA"),
+                    platform=dep.get("platform", "n/a"),
                     line=product_name.split()[-1] if product_name else "",
                     direction=direction,
                     operator=operator,
