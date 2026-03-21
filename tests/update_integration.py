@@ -35,30 +35,43 @@ def get_commit_hash() -> str:
     return result.stdout.strip()
 
 
-async def wait_for_ha(timeout: int = 120) -> bool:
-    print(f"Waiting for HA to restart (max {timeout}s)...")
+async def check_ha_available(timeout: int = 10) -> bool:
+    """Check if Home Assistant is available."""
     headers = {"Authorization": f"Bearer {HA_TOKEN}"}
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{HA_URL}/api/",
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=timeout),
+            ) as response:
+                return response.status == 200
+    except Exception:
+        return False
+
+
+async def wait_for_ha(timeout: int = 120) -> bool:
+    """Wait for HA to be available after restart."""
+    print(f"Waiting for HA to restart (max {timeout}s)...")
     for i in range(timeout // 5):
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"{HA_URL}/api/", headers=headers) as response:
-                    if response.status == 200:
-                        print(f"HA is back up after {(i + 1) * 5}s")
-                        return True
-        except Exception:
-            pass
+        if await check_ha_available():
+            print(f"HA is back up after {(i + 1) * 5}s")
+            return True
         await asyncio.sleep(5)
     print("HA did not come back within timeout")
     return False
 
 
 async def restart_ha() -> None:
+    """Restart Home Assistant."""
     print("Restarting Home Assistant...")
     headers = {"Authorization": f"Bearer {HA_TOKEN}"}
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                f"{HA_URL}/api/services/homeassistant/restart", headers=headers
+                f"{HA_URL}/api/services/homeassistant/restart",
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=30),
             ) as response:
                 print(f"Restart API response: {response.status}")
     except Exception as e:
@@ -68,84 +81,122 @@ async def restart_ha() -> None:
 async def check_integration_version() -> tuple[str | None, bool]:
     """Check if CFL Commute is installed and get version."""
     headers = {"Authorization": f"Bearer {HA_TOKEN}"}
-
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                f"{HA_URL}/api/states/update.cfl_commute_update", headers=headers
+                f"{HA_URL}/api/states/update.cfl_commute_update",
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=10),
             ) as response:
                 if response.status == 200:
                     state = await response.json()
                     version = state.get("attributes", {}).get("installed_version", None)
                     return (version, True)
+                elif response.status == 404:
+                    return (None, False)
     except Exception as e:
         print(f"Could not check states: {e}")
-
     return (None, False)
 
 
 async def redownload_via_hacs(local_commit: str) -> bool:
-    """Redownload CFL Commute via HACS API."""
+    """Redownload CFL Commute via HACS API with retry logic."""
     print("Starting HACS update via API...")
     headers = {"Authorization": f"Bearer {HA_TOKEN}"}
 
-    async with aiohttp.ClientSession() as session:
-        # Trigger update via update/install service
-        print("Triggering update/install service...")
-        payload = {"entity_id": "update.cfl_commute_update"}
+    for attempt in range(3):
+        try:
+            async with aiohttp.ClientSession() as session:
+                # Trigger update via update/install service
+                print(f"Attempt {attempt + 1}: Triggering update/install service...")
+                payload = {"entity_id": "update.cfl_commute_update"}
 
-        async with session.post(
-            f"{HA_URL}/api/services/update/install",
-            headers=headers,
-            json=payload,
-            timeout=aiohttp.ClientTimeout(total=60),
-        ) as response:
-            print(f"Update response: {response.status}")
-            if response.status != 200:
-                print(f"Update failed with status {response.status}")
+                async with session.post(
+                    f"{HA_URL}/api/services/update/install",
+                    headers=headers,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=60),
+                ) as response:
+                    print(f"Update response: {response.status}")
+
+                    # If HACS returns 500, it might still be processing - check status
+                    if response.status == 500:
+                        print("HACS returned 500, checking update status...")
+                    elif response.status not in (200, 201):
+                        if attempt < 2:
+                            print(f"Retrying in 5 seconds...")
+                            await asyncio.sleep(5)
+                            continue
+                        print(f"Update failed with status {response.status}")
+                        return False
+
+                # Wait for update to complete
+                print("Waiting for update to complete...")
+                for i in range(90):  # Wait up to 90 seconds
+                    try:
+                        async with session.get(
+                            f"{HA_URL}/api/states/update.cfl_commute_update",
+                            headers=headers,
+                            timeout=aiohttp.ClientTimeout(total=10),
+                        ) as resp:
+                            if resp.status == 200:
+                                state = await resp.json()
+                                attrs = state.get("attributes", {})
+                                in_progress = attrs.get("in_progress", False)
+                                percentage = attrs.get("update_percentage")
+                                installed = attrs.get("installed_version")
+                                latest = attrs.get("latest_version")
+
+                                if percentage is not None:
+                                    print(f"  Progress: {percentage}%")
+
+                                if not in_progress:
+                                    if installed == latest:
+                                        print(
+                                            f"✓ Update complete! Installed: {installed}"
+                                        )
+                                        return True
+                                    else:
+                                        print(
+                                            f"✗ Update in progress but failed. Installed: {installed}, Latest: {latest}"
+                                        )
+                                        return False
+                    except Exception as e:
+                        print(f"Status check error: {e}")
+
+                    await asyncio.sleep(1)
+
+                print("Timeout waiting for update")
+                if attempt < 2:
+                    print("Retrying...")
+                    await asyncio.sleep(5)
+                    continue
                 return False
 
-        # Wait for update to complete
-        print("Waiting for update to complete...")
-        for i in range(60):  # Wait up to 60 seconds
-            try:
-                async with session.get(
-                    f"{HA_URL}/api/states/update.cfl_commute_update",
-                    headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=10),
-                ) as resp:
-                    if resp.status == 200:
-                        state = await resp.json()
-                        attrs = state.get("attributes", {})
-                        in_progress = attrs.get("in_progress", False)
-                        percentage = attrs.get("update_percentage")
-                        installed = attrs.get("installed_version")
-                        latest = attrs.get("latest_version")
+        except asyncio.TimeoutError:
+            print(f"Attempt {attempt + 1} timed out")
+            if attempt < 2:
+                await asyncio.sleep(5)
+                continue
+            return False
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed: {e}")
+            if attempt < 2:
+                await asyncio.sleep(5)
+                continue
+            return False
 
-                        if percentage is not None:
-                            print(f"  Progress: {percentage}%")
-
-                        if not in_progress:
-                            if installed == latest:
-                                print(f"✓ Update complete! Installed: {installed}")
-                                return True
-                            else:
-                                print(
-                                    f"✗ Update failed. Installed: {installed}, Latest: {latest}"
-                                )
-                                return False
-            except Exception as e:
-                print(f"Status check error: {e}")
-
-            await asyncio.sleep(1)
-
-        print("Timeout waiting for update")
-        return False
+    return False
 
 
 async def main():
     if not HA_TOKEN:
         print("Error: HA_TOKEN not found in .env")
+        sys.exit(1)
+
+    # Check HA is available first
+    if not await check_ha_available():
+        print("Error: Home Assistant is not available")
         sys.exit(1)
 
     local_commit = get_commit_hash()
@@ -170,8 +221,8 @@ async def main():
                 if await wait_for_ha():
                     print("✓ HA restarted successfully")
                 else:
-                    print("✗ HA restart failed")
-                    sys.exit(1)
+                    print("✗ HA restart failed or timed out")
+                    print("→ Please restart HA manually if needed")
             else:
                 print("✗ Redownload failed")
                 print("→ Try restarting HA manually or updating via HACS UI")
