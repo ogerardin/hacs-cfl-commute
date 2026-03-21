@@ -320,7 +320,7 @@ class CFLCommuteClient:
                     line=product_name.split()[-1] if product_name else "",
                     direction=direction,
                     operator=operator,
-                    train_number=dep.get("num", ""),
+                    train_number=product_name,
                     is_cancelled=is_cancelled,
                     delay_minutes=delay_minutes,
                     calling_points=stop_names,
