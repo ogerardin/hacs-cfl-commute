@@ -5,6 +5,7 @@ import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.setup import async_setup_component
 from homeassistant.util import slugify
 
 from .const import (
@@ -48,6 +49,15 @@ async def async_ensure_helpers(hass: HomeAssistant, entry: ConfigEntry) -> None:
             f"{HELPER_FLAGGED_PREFIX}{base}",
         ),
     ]
+
+    # Ensure input_text is loaded. HA only calls its async_setup when helpers already
+    # exist; if none do yet, hass.data["input_text"] is never populated without this.
+    # async_setup_component is idempotent — safe to call even when already set up.
+    if not await async_setup_component(hass, _INPUT_TEXT_DOMAIN, {}):
+        _LOGGER.warning(
+            "Could not load input_text component; helpers will not be created automatically"
+        )
+        return
 
     # The input_text storage collection is registered under hass.data["input_text"].
     # Older HA versions stored it as {"storage_collection": ..., "yaml_collection": ...};
