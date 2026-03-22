@@ -106,6 +106,30 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
         # Off-peak hours
         return timedelta(seconds=UPDATE_INTERVAL_OFFPEAK)
 
+    def _get_utc_offset(self) -> timedelta:
+        """Get the UTC offset for Luxembourg (CET = +1, CEST = +2).
+
+        Note: Using fixed offset for simplicity. For production, use pytz or zoneinfo.
+        """
+        # Determine if daylight saving time is active
+        # DST in Luxembourg: last Sunday of March to last Sunday of October
+        now = datetime.now()
+        year = now.year
+
+        # Find last Sunday of March
+        march = datetime(year, 3, 31)
+        march_last_sunday = march - timedelta(days=(march.weekday() + 7) % 7)
+        dst_start = march_last_sunday.replace(hour=3)
+
+        # Find last Sunday of October
+        october = datetime(year, 10, 31)
+        october_last_sunday = october - timedelta(days=(october.weekday() + 7) % 7)
+        dst_end = october_last_sunday.replace(hour=3)
+
+        if dst_start <= now < dst_end:
+            return timedelta(hours=2)  # CEST
+        return timedelta(hours=1)  # CET
+
     def _filter_departed_trains(
         self, departures: list[Departure], now: datetime
     ) -> list[Departure]:
@@ -159,8 +183,8 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
                         second=dep_time.second,
                     )
                     # Convert Luxembourg local time to UTC for comparison
-                    # Subtract the Luxembourg offset to get UTC
-                    dep_utc = dep_local - timedelta(hours=1)
+                    # Subtract the dynamic Luxembourg offset to get UTC
+                    dep_utc = dep_local - self._get_utc_offset()
 
                     # Handle midnight crossing: if departure UTC is significantly
                     # before now, it must be after midnight (next day)
@@ -187,11 +211,14 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
         """Fetch data from CFL API."""
         try:
             now = dt_util.now()
-            date_str = now.strftime("%Y-%m-%d")
-            time_str = now.strftime("%H:%M")
+            # API expects Luxembourg local time (CET/CEST = UTC+1/UTC+2)
+            # Use local time for API parameters, keep UTC for filtering
+            now_local = now + self._get_utc_offset()
+            date_str = now_local.strftime("%Y-%m-%d")
+            time_str = now_local.strftime("%H:%M")
 
             _LOGGER.debug(
-                "Fetching departures from %s to %s at %s %s",
+                "Fetching departures from %s to %s at %s %s (local time)",
                 self.origin_name,
                 self.destination_name,
                 date_str,
