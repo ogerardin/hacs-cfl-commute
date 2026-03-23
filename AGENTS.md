@@ -181,8 +181,6 @@ tests/
 ├── test_sensor.py       # Sensor logic tests
 ├── test_config_flow.py  # Config flow tests
 ├── test_integration.py  # Real API tests
-├── update_integration.py # Update integration via HACS
-└── test_setup_flow.py   # Test config flow via browser
 ```
 
 ---
@@ -215,28 +213,6 @@ pytestmark = pytest.mark.skipif(
     not os.environ.get("CFL_API_KEY"),
     reason="CFL_API_KEY environment variable not set"
 )
-```
-
-### Browser-Based Tests
-
-Browser tests use Playwright to test the Home Assistant UI:
-
-```bash
-# Install dependencies
-pip install playwright python-dotenv aiohttp
-playwright install chromium
-
-# Setup .env file with credentials
-# HA_TOKEN=<long-lived-access-token>
-# HA_USERNAME=<ha-username>
-# HA_PASSWORD=<ha-password>
-# CFL_API_KEY=<cfl-api-key>
-
-# Update integration (check version, restart HA)
-python tests/update_integration.py
-
-# Test setup flow (browser automation)
-python tests/test_setup_flow.py
 ```
 
 ---
@@ -292,3 +268,26 @@ git commit -m "feat: add station search to config flow"
 git commit -m "fix: handle empty departures list"
 git commit -m "test: add integration tests for real API"
 ```
+
+### Releases
+
+To make a release:
+
+1. **Update version** in `custom_components/cfl_commute/manifest.json`
+2. **Zip the integration**:
+   ```bash
+   cd custom_components && zip -r ../cfl_commute.zip cfl_commute && cd ..
+   ```
+3. **Create git tag** with the same version:
+   ```bash
+   git tag -a 1.3.2 -m "Release 1.3.2"
+   git push origin main --tags
+   ```
+4. **Create GitHub release**:
+   ```bash
+   gh release create 1.3.2 --title "Release 1.3.2" --notes "Changes in this release..."
+   ```
+5. **Upload the zip asset**:
+   ```bash
+   gh release upload 1.3.2 cfl_commute.zip
+   ```
