@@ -61,6 +61,52 @@ class TestCommuteNameGeneration:
         assert f"{origin} → {destination}" == expected
 
 
+class TestApiKeyReuse:
+    """Test API key reuse from existing entries."""
+
+    @pytest.mark.asyncio
+    async def test_skip_api_key_step_when_existing_entry(self):
+        """Test API key step is skipped when existing entry has API key."""
+        flow = CFLCommuteConfigFlow()
+        flow.hass = MagicMock()
+
+        existing_entry = MagicMock()
+        existing_entry.data = {CONF_API_KEY: "existing_api_key"}
+        flow._async_current_entries = MagicMock(return_value=[existing_entry])
+
+        result = await flow.async_step_user()
+
+        assert result["step_id"] == "origin"
+        assert flow._api_key == "existing_api_key"
+
+    @pytest.mark.asyncio
+    async def test_show_api_key_form_when_no_existing_entry(self):
+        """Test API key form is shown when no existing entry."""
+        flow = CFLCommuteConfigFlow()
+        flow.hass = MagicMock()
+        flow._async_current_entries = MagicMock(return_value=[])
+
+        result = await flow.async_step_user()
+
+        assert result["step_id"] == "user"
+        assert "api_key" in result["data_schema"].schema
+
+    @pytest.mark.asyncio
+    async def test_show_api_key_form_when_existing_entry_has_no_key(self):
+        """Test API key form is shown when existing entry has no API key."""
+        flow = CFLCommuteConfigFlow()
+        flow.hass = MagicMock()
+
+        existing_entry = MagicMock()
+        existing_entry.data = {}
+        flow._async_current_entries = MagicMock(return_value=[existing_entry])
+
+        result = await flow.async_step_user()
+
+        assert result["step_id"] == "user"
+        assert "api_key" in result["data_schema"].schema
+
+
 class TestReturnJourneyFeature:
     """Test return journey tracking feature."""
 

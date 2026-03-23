@@ -67,6 +67,15 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle the initial step."""
         errors: dict[str, str] = {}
 
+        # Check for existing entries with API key
+        existing_entries = self._async_current_entries()
+        if existing_entries:
+            first_entry = existing_entries[0]
+            self._api_key = first_entry.data.get(CONF_API_KEY, "")
+            if self._api_key:
+                self._client = CFLCommuteClient(self._api_key)
+                return await self.async_step_origin()
+
         if user_input is not None:
             self._api_key = user_input[CONF_API_KEY]
             self._client = CFLCommuteClient(self._api_key)
@@ -244,7 +253,7 @@ class CFLCommuteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_COMMUTE_NAME, default=default_name): str,
                     vol.Required(
                         CONF_TIME_WINDOW, default=DEFAULT_TIME_WINDOW
-                    ): vol.All(vol.Coerce(int), vol.Range(min=15, max=180)),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=0, max=180)),
                     vol.Required(CONF_NUM_TRAINS, default=DEFAULT_NUM_TRAINS): vol.All(
                         vol.Coerce(int), vol.Range(min=1, max=10)
                     ),
@@ -383,7 +392,7 @@ class CFLCommuteOptionsFlow(config_entries.OptionsFlow):
                 vol.Required(
                     CONF_TIME_WINDOW,
                     default=current_options.get(CONF_TIME_WINDOW, DEFAULT_TIME_WINDOW),
-                ): vol.All(vol.Coerce(int), vol.Range(min=15, max=180)),
+                ): vol.All(vol.Coerce(int), vol.Range(min=0, max=180)),
                 vol.Required(
                     CONF_NUM_TRAINS,
                     default=current_options.get(CONF_NUM_TRAINS, DEFAULT_NUM_TRAINS),
