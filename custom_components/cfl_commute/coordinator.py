@@ -13,6 +13,7 @@ from .const import (
     CONF_MAJOR_THRESHOLD,
     CONF_MINOR_THRESHOLD,
     CONF_NIGHT_UPDATES,
+    CONF_NUM_TRAINS,
     CONF_SEVERE_THRESHOLD,
     CONF_TIME_WINDOW,
     DEFAULT_MAJOR_THRESHOLD,
@@ -153,6 +154,10 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
         if not departures:
             return departures
 
+        # If time_window is 0, don't filter - show all departures
+        if self.time_window == 0:
+            return departures
+
         grace_period_seconds = 120
         filtered = []
 
@@ -213,16 +218,20 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
             now = dt_util.now()
             # API expects Luxembourg local time (CET/CEST = UTC+1/UTC+2)
             # Use local time for API parameters, keep UTC for filtering
-            now_local = now + self._get_utc_offset()
+            offset = self._get_utc_offset()
+            now_local = now + offset
             date_str = now_local.strftime("%Y-%m-%d")
             time_str = now_local.strftime("%H:%M")
 
             _LOGGER.debug(
-                "Fetching departures from %s to %s at %s %s (local time)",
+                "Fetching departures from %s to %s at %s %s (UTC: %s, local: %s, offset: %s)",
                 self.origin_name,
                 self.destination_name,
                 date_str,
                 time_str,
+                now.strftime("%H:%M"),
+                now_local.strftime("%H:%M"),
+                offset,
             )
 
             # Fetch departures with passlist to get all stops
@@ -243,11 +252,10 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
                 dest_name_lower = self.destination_name.lower()
                 if any(dest_name_lower in cp for cp in calling_point_names):
                     _LOGGER.debug(
-                        "Departure %s to %s passes through %s (calling points: %s)",
+                        "Departure %s to %s passes through %s",
                         dep.train_number,
                         dep.direction,
                         self.destination_name,
-                        dep.calling_points,
                     )
                     filtered_departures.append(dep)
 
@@ -267,10 +275,14 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
             filtered_departures = self._filter_departed_trains(filtered_departures, now)
 
             _LOGGER.debug(
-                "%d departures remain after filtering (time_window: %d min)",
+                "%d departures remain after time filtering (time_window: %d min)",
                 len(filtered_departures),
                 self.time_window,
             )
+
+            # Limit to num_trains
+            num_trains = self.config.get(CONF_NUM_TRAINS, 3)
+            filtered_departures = filtered_departures[:num_trains]
 
             # Update interval with lock
             async with self._update_lock:

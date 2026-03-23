@@ -227,8 +227,8 @@ class CFLCommuteClient:
             "format": "json",
             "passlist": "1",  # Include all stops for this journey
             "duration": str(
-                time_window
-            ),  # Request departures within time_window minutes
+                time_window if time_window > 0 else 1200
+            ),  # Request departures within time_window minutes (0 = all departures = 20h max)
         }
 
         # Add date/time parameters if provided (format: YYYY-MM-DD, HH:MM)
@@ -329,9 +329,7 @@ class CFLCommuteClient:
                 )
             )
 
-        # Filter by time window and return
-        departures = self._filter_by_time_window(departures, time_window)
-        return departures[:10]
+        return self._filter_by_time_window(departures, time_window)
 
     def _filter_by_time_window(
         self, departures: list[Departure], time_window: int
