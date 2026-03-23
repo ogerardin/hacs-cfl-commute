@@ -27,38 +27,13 @@
       },
       "settings": {
         "title": "Commute Settings",
-        "data": {
-          "commute_name": "Commute Name",
-          "time_window": "Time Window (minutes)",
-          "num_trains": "Number of Trains",
-          "minor_threshold": "Minor Delays Threshold (min)",
-          "major_threshold": "Major Delays Threshold (min)",
-          "severe_threshold": "Severe Disruption Threshold (min)",
-          "night_updates": "Enable Night Updates"
-        }
+        "description": "Configure your commute tracking settings"
       },
       "return_journey": {
         "title": "Return Journey",
         "description": "Would you also like to track the return journey from {destination} to {origin}?",
         "data": {
           "add_return_journey": "Enable return journey"
-        }
-      }
-    },
-    "options": {
-      "step": {
-        "init": {
-          "title": "Update Commute Settings",
-          "description": "Modify your commute tracking settings.",
-          "data": {
-            "commute_name": "Commute Name",
-            "time_window": "Time Window (minutes)",
-            "num_trains": "Number of Trains",
-            "minor_threshold": "Minor Delays Threshold (min)",
-            "major_threshold": "Major Delays Threshold (min)",
-            "severe_threshold": "Severe Disruption Threshold (min)",
-            "night_updates": "Enable Night Updates"
-          }
         }
       }
     }
