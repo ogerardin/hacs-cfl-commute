@@ -2,7 +2,8 @@
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -29,8 +30,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# Luxembourg timezone: CET (UTC+1) or CEST (UTC+2) depending on DST
-LUXEMBOURG_TZ = timezone(timedelta(hours=1))  # CET, will be CEST in summer
+LUXEMBOURG_TZ = ZoneInfo("Europe/Luxembourg")
 
 
 class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
@@ -107,30 +107,6 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
         # Off-peak hours
         return timedelta(seconds=UPDATE_INTERVAL_OFFPEAK)
 
-    def _get_utc_offset(self) -> timedelta:
-        """Get the UTC offset for Luxembourg (CET = +1, CEST = +2).
-
-        Note: Using fixed offset for simplicity. For production, use pytz or zoneinfo.
-        """
-        # Determine if daylight saving time is active
-        # DST in Luxembourg: last Sunday of March to last Sunday of October
-        now = datetime.now()
-        year = now.year
-
-        # Find last Sunday of March
-        march = datetime(year, 3, 31)
-        march_last_sunday = march - timedelta(days=(march.weekday() + 7) % 7)
-        dst_start = march_last_sunday.replace(hour=3)
-
-        # Find last Sunday of October
-        october = datetime(year, 10, 31)
-        october_last_sunday = october - timedelta(days=(october.weekday() + 7) % 7)
-        dst_end = october_last_sunday.replace(hour=3)
-
-        if dst_start <= now < dst_end:
-            return timedelta(hours=2)  # CEST
-        return timedelta(hours=1)  # CET
-
     def _filter_departed_trains(
         self, departures: list[Departure], now: datetime
     ) -> list[Departure]:
@@ -141,12 +117,12 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
         - Are cancelled (cancelled trains should remain visible)
         - Have not exceeded the grace period (2 minutes)
 
-        Note: API returns departure times in Luxembourg local time, but 'now'
-        may be in UTC. This method handles timezone conversion.
+        Note: API returns departure times in Luxembourg local time. This method
+        uses ZoneInfo for consistent timezone handling (same as api.py).
 
         Args:
             departures: List of departures to filter
-            now: Current datetime (may be UTC or local time)
+            now: Current datetime (UTC from Home Assistant)
 
         Returns:
             Filtered list of departures
@@ -154,18 +130,14 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
         if not departures:
             return departures
 
-        # If time_window is 0, don't filter - show all departures
         if self.time_window == 0:
             return departures
 
         grace_period_seconds = 120
         filtered = []
 
-        # Determine the timezone offset for Luxembourg
-        # API times are in Luxembourg local time (CET/CEST)
-        # During winter: CET = UTC+1, during summer: CEST = UTC+2
-        # We use a fixed +1 as a conservative estimate
-        # Note: LUXEMBOURG_TZ is used for the UTC offset calculation
+        now_lux = datetime.now(LUXEMBOURG_TZ)
+        now_lux_naive = now_lux.replace(tzinfo=None)
 
         for dep in departures:
             if dep.is_cancelled:
@@ -181,29 +153,27 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
             if departure_time:
                 try:
                     dep_time = datetime.strptime(departure_time, "%H:%M:%S")
-                    # Create departure datetime in Luxembourg local time
-                    dep_local = now.replace(
+                    dep_local = now_lux_naive.replace(
                         hour=dep_time.hour,
                         minute=dep_time.minute,
                         second=dep_time.second,
                     )
-                    # Convert Luxembourg local time to UTC for comparison
-                    # Subtract the dynamic Luxembourg offset to get UTC
-                    dep_utc = dep_local - self._get_utc_offset()
 
-                    # Handle midnight crossing: if departure UTC is significantly
-                    # before now, it must be after midnight (next day)
-                    if dep_utc < now and (now - dep_utc).total_seconds() > 43200:
-                        dep_utc = dep_utc + timedelta(days=1)
+                    if dep_local < now_lux_naive:
+                        diff = (now_lux_naive - dep_local).total_seconds()
+                        if diff > 43200:
+                            dep_local = dep_local + timedelta(days=1)
 
-                    if dep_utc > now - timedelta(seconds=grace_period_seconds):
+                    if dep_local > now_lux_naive - timedelta(
+                        seconds=grace_period_seconds
+                    ):
                         filtered.append(dep)
                     else:
                         _LOGGER.debug(
-                            "Filtered out departed train: %s at %s (now: %s UTC)",
+                            "Filtered out departed train: %s at %s (now: %s)",
                             dep.train_number,
                             departure_time,
-                            now.strftime("%H:%M:%S"),
+                            now_lux.strftime("%H:%M:%S"),
                         )
                 except ValueError:
                     filtered.append(dep)
@@ -216,22 +186,16 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
         """Fetch data from CFL API."""
         try:
             now = dt_util.now()
-            # API expects Luxembourg local time (CET/CEST = UTC+1/UTC+2)
-            # Use local time for API parameters, keep UTC for filtering
-            offset = self._get_utc_offset()
-            now_local = now + offset
-            date_str = now_local.strftime("%Y-%m-%d")
-            time_str = now_local.strftime("%H:%M")
+            now_lux = datetime.now(LUXEMBOURG_TZ)
+            date_str = now_lux.strftime("%Y-%m-%d")
+            time_str = now_lux.strftime("%H:%M")
 
             _LOGGER.debug(
-                "Fetching departures from %s to %s at %s %s (UTC: %s, local: %s, offset: %s)",
+                "Fetching departures from %s to %s at %s %s",
                 self.origin_name,
                 self.destination_name,
                 date_str,
                 time_str,
-                now.strftime("%H:%M"),
-                now_local.strftime("%H:%M"),
-                offset,
             )
 
             # Fetch departures with passlist to get all stops
@@ -243,6 +207,15 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
             )
 
             _LOGGER.debug("API returned %d departures", len(departures))
+
+            if not departures:
+                _LOGGER.warning(
+                    "No departures found for %s (time_window=%d min). "
+                    "Next update in %s",
+                    self.origin_name,
+                    self.time_window,
+                    self.update_interval,
+                )
 
             # Filter departures by destination (using name matching for robustness)
             filtered_departures = []
