@@ -136,7 +136,7 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
         grace_period_seconds = 120
         filtered = []
 
-        now_lux = datetime.now(LUXEMBOURG_TZ)
+        now_lux = now.astimezone(LUXEMBOURG_TZ)
         now_lux_naive = now_lux.replace(tzinfo=None)
 
         for dep in departures:
