@@ -215,3 +215,105 @@ class TestReturnJourneyFeature:
         assert result["title"] == "Luxembourg → Esch-sur-Alzette"
         assert result["data"][CONF_ORIGIN]["id"] == "200405060"
         assert result["data"][CONF_DESTINATION]["id"] == "200417010"
+
+
+class TestStationSelection:
+    """Test station selection with combobox."""
+
+    @pytest.fixture
+    def mock_client(self):
+        """Create a mock API client."""
+        client = MagicMock()
+        return client
+
+    def _create_flow_with_client(self, mock_client):
+        """Create a flow with mock client."""
+        flow = CFLCommuteConfigFlow()
+        flow._api_key = "test_api_key"
+        flow._client = mock_client
+        return flow
+
+    def _create_station_mock(self, station_id, station_name):
+        """Create a mock station object with proper attributes."""
+        station = MagicMock()
+        station.id = station_id
+        station.name = station_name
+        return station
+
+    @pytest.mark.asyncio
+    async def test_single_station_match_auto_advances(self, mock_client):
+        """Test that a single station match auto-advances to next step."""
+        flow = self._create_flow_with_client(mock_client)
+
+        mock_client.search_stations = AsyncMock(
+            return_value=[self._create_station_mock("200405060", "Luxembourg")]
+        )
+
+        result = await flow.async_step_origin({"station": "Luxembourg"})
+
+        assert result["step_id"] == "destination"
+        assert flow._origin_station == {"id": "200405060", "name": "Luxembourg"}
+
+    @pytest.mark.asyncio
+    async def test_multiple_station_matches_shows_dropdown(self, mock_client):
+        """Test that multiple matches shows dropdown for selection."""
+        flow = self._create_flow_with_client(mock_client)
+
+        mock_client.search_stations = AsyncMock(
+            return_value=[
+                self._create_station_mock("200405060", "Luxembourg"),
+                self._create_station_mock("200405061", "Luxembourg-Patinoire"),
+            ]
+        )
+
+        result = await flow.async_step_origin({"station": "Luxembourg"})
+
+        assert result["step_id"] == "origin"
+        assert len(flow._origin_stations) == 2
+
+    @pytest.mark.asyncio
+    async def test_no_station_matches_shows_error(self, mock_client):
+        """Test that no matches shows error."""
+        flow = self._create_flow_with_client(mock_client)
+
+        mock_client.search_stations = AsyncMock(return_value=[])
+
+        result = await flow.async_step_origin({"station": "InvalidStation"})
+
+        assert result["step_id"] == "origin"
+        assert "errors" in result
+        assert "station" in result["errors"]
+
+    @pytest.mark.asyncio
+    async def test_exact_station_id_match_advances(self, mock_client):
+        """Test that exact station ID match from dropdown advances."""
+        flow = self._create_flow_with_client(mock_client)
+
+        mock_client.search_stations = AsyncMock(
+            return_value=[
+                self._create_station_mock("200405060", "Luxembourg"),
+            ]
+        )
+
+        result = await flow.async_step_origin({"station": "200405060"})
+
+        assert result["step_id"] == "destination"
+        assert flow._origin_station == {"id": "200405060", "name": "Luxembourg"}
+
+    @pytest.mark.asyncio
+    async def test_destination_single_match_auto_advances(self, mock_client):
+        """Test destination selection with single match auto-advances."""
+        flow = self._create_flow_with_client(mock_client)
+        flow._origin_station = {"id": "200405060", "name": "Luxembourg"}
+
+        mock_client.search_stations = AsyncMock(
+            return_value=[self._create_station_mock("200417010", "Esch-sur-Alzette")]
+        )
+
+        result = await flow.async_step_destination({"station": "Esch-sur-Alzette"})
+
+        assert result["step_id"] == "settings"
+        assert flow._destination_station == {
+            "id": "200417010",
+            "name": "Esch-sur-Alzette",
+        }
