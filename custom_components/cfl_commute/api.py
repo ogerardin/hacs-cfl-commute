@@ -4,8 +4,17 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import aiohttp
+
+LUXEMBOURG_TZ = ZoneInfo("Europe/Luxembourg")
+
+
+def _get_luxembourg_now() -> datetime:
+    """Get current time in Luxembourg timezone."""
+    return datetime.now(LUXEMBOURG_TZ)
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -342,9 +351,15 @@ class CFLCommuteClient:
         if time_window <= 0:
             return departures
 
-        # API times are in Luxembourg local time, so use local time for comparison
-        now = datetime.now()
+        now = _get_luxembourg_now()
         now_minutes = now.hour * 60 + now.minute
+
+        _LOGGER.debug(
+            "Filtering by time window: now=%s (%d min), window=%d min",
+            now.strftime("%H:%M"),
+            now_minutes,
+            time_window,
+        )
 
         filtered = []
         for dep in departures:
@@ -352,17 +367,34 @@ class CFLCommuteClient:
                 dep_time = datetime.strptime(dep.scheduled_departure, "%H:%M")
                 dep_minutes = dep_time.hour * 60 + dep_time.minute
 
-                # Calculate minutes from now, handling midnight crossing
                 diff = dep_minutes - now_minutes
-                if diff < -60:  # Past midnight (e.g., 23:50 -> 00:10 = +20 min)
-                    diff += 1440  # Add 24 hours in minutes
+                if diff < -60:
+                    diff += 1440
 
                 if 0 <= diff <= time_window:
                     filtered.append(dep)
+                    _LOGGER.debug(
+                        "Train %s at %s is within window (+%d min)",
+                        dep.train_number,
+                        dep.scheduled_departure,
+                        diff,
+                    )
+                else:
+                    _LOGGER.debug(
+                        "Train %s at %s filtered out (diff=%d, window=%d)",
+                        dep.train_number,
+                        dep.scheduled_departure,
+                        diff,
+                        time_window,
+                    )
             except (ValueError, TypeError):
-                # Keep departures where time parsing fails
                 filtered.append(dep)
 
+        _LOGGER.debug(
+            "Time window filter: %d/%d departures included",
+            len(filtered),
+            len(departures),
+        )
         return filtered
 
     async def get_journey_details(self, journey_ref: str) -> list[dict]:
