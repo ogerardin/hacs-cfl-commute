@@ -482,31 +482,32 @@ class NationalRailAPI:
             elif isinstance(destination, dict):
                 destination = destination.get("locationName", "")
 
-            # Subsequent calling points
+            # Subsequent calling points and arrival time
             calling_points = []
+            scheduled_arrival = None
+            estimated_arrival = None
             subsequent_points = service.get("subsequentCallingPoints", [])
             if isinstance(subsequent_points, list) and subsequent_points:
                 calling_point_list = subsequent_points[0].get("callingPoint", [])
                 if not isinstance(calling_point_list, list):
                     calling_point_list = [calling_point_list]
-                calling_points = [
-                    cp.get("locationName", "") for cp in calling_point_list if cp
-                ]
 
-            # Arrival time: use configured destination stop, fall back to last calling point
-            scheduled_arrival = None
-            estimated_arrival = None
-            if calling_points and isinstance(subsequent_points, list) and subsequent_points:
-                calling_point_list = subsequent_points[0].get("callingPoint", [])
-                if isinstance(calling_point_list, list) and calling_point_list:
-                    dest_point = None
-                    if destination_crs:
-                        for cp in calling_point_list:
-                            if cp.get("crs", "").upper() == destination_crs.upper():
-                                dest_point = cp
-                                break
-                    if dest_point is None:
-                        dest_point = calling_point_list[-1]
+                # Build calling points list, truncating at destination if configured
+                dest_point = None
+                filtered = []
+                for cp in calling_point_list:
+                    if not cp:
+                        continue
+                    filtered.append(cp)
+                    if destination_crs and cp.get("crs", "").upper() == destination_crs.upper():
+                        dest_point = cp
+                        break  # Stop collecting stops after the destination
+
+                if dest_point is None and filtered:
+                    dest_point = filtered[-1]
+
+                calling_points = [cp.get("locationName", "") for cp in filtered]
+                if dest_point:
                     scheduled_arrival = dest_point.get("st")
                     estimated_arrival = dest_point.get("et")
 

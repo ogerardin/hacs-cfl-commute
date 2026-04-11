@@ -391,6 +391,78 @@ class TestParseService:
 
         assert result["scheduled_arrival"] == "08:52"
 
+    async def test_parse_service_calling_points_filtered_to_destination(self, api_client):
+        """Test that calling_points only includes stops up to and including the destination."""
+        service_data = {
+            "std": "08:32",
+            "etd": "On time",
+            "platform": "3",
+            "operator": "Thameslink",
+            "serviceID": "service_ecr_lbg",
+            "destination": [{"locationName": "Cannon Street", "crs": "CST"}],
+            "subsequentCallingPoints": [
+                {
+                    "callingPoint": [
+                        {"locationName": "London Bridge", "crs": "LBG", "st": "08:45", "et": "On time"},
+                        {"locationName": "Cannon Street", "crs": "CST", "st": "08:52", "et": "On time"},
+                    ]
+                }
+            ],
+        }
+
+        result = api_client._parse_service(service_data, destination_crs="LBG")
+
+        assert result["calling_points"] == ["London Bridge"]
+        assert "Cannon Street" not in result["calling_points"]
+        assert result["scheduled_arrival"] == "08:45"
+
+    async def test_parse_service_calling_points_unfiltered_without_destination(self, api_client):
+        """Test that calling_points shows all stops when no destination_crs given."""
+        service_data = {
+            "std": "08:32",
+            "etd": "On time",
+            "platform": "3",
+            "operator": "Thameslink",
+            "serviceID": "service_ecr_cst",
+            "destination": [{"locationName": "Cannon Street", "crs": "CST"}],
+            "subsequentCallingPoints": [
+                {
+                    "callingPoint": [
+                        {"locationName": "London Bridge", "crs": "LBG", "st": "08:45", "et": "On time"},
+                        {"locationName": "Cannon Street", "crs": "CST", "st": "08:52", "et": "On time"},
+                    ]
+                }
+            ],
+        }
+
+        result = api_client._parse_service(service_data)
+
+        assert result["calling_points"] == ["London Bridge", "Cannon Street"]
+
+    async def test_parse_service_calling_points_unfiltered_when_destination_not_found(self, api_client):
+        """Test that all calling_points are kept when destination_crs is not matched."""
+        service_data = {
+            "std": "08:32",
+            "etd": "On time",
+            "platform": "3",
+            "operator": "Thameslink",
+            "serviceID": "service_ecr_xyz",
+            "destination": [{"locationName": "Cannon Street", "crs": "CST"}],
+            "subsequentCallingPoints": [
+                {
+                    "callingPoint": [
+                        {"locationName": "London Bridge", "crs": "LBG", "st": "08:45", "et": "On time"},
+                        {"locationName": "Cannon Street", "crs": "CST", "st": "08:52", "et": "On time"},
+                    ]
+                }
+            ],
+        }
+
+        result = api_client._parse_service(service_data, destination_crs="XYZ")
+
+        assert result["calling_points"] == ["London Bridge", "Cannon Street"]
+        assert result["scheduled_arrival"] == "08:52"
+
     @pytest.mark.parametrize(
         ("std", "etd"),
         [
