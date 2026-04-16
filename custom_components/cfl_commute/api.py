@@ -64,6 +64,21 @@ class Departure:
     journey_ref: str = ""
 
 
+def _normalize_platform(platform):
+    """Normalize platform value to a string.
+
+    The HAFAS API can return platform as either a string ("3")
+    or an object ({"text": "3", "pos": "N"}).
+    """
+    if isinstance(platform, dict):
+        return str(
+            platform.get("text", platform.get("name", platform.get("number", "")))
+        )
+    if platform and platform != "n/a":
+        return str(platform)
+    return ""
+
+
 class CFLCommuteClient:
     """Client for mobiliteit.lu API."""
 
@@ -331,7 +346,7 @@ class CFLCommuteClient:
                     station_id=station_id,
                     scheduled_departure=scheduled_time,
                     expected_departure=actual_time,
-                    platform=dep.get("platform", "n/a"),
+                    platform=_normalize_platform(dep.get("platform")),
                     line=product_name.split()[-1] if product_name else "",
                     direction=direction,
                     operator=operator,
