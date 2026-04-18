@@ -101,6 +101,9 @@ class CFLCommuteClient:
     # Include bus operators for stations that only have bus data
     BUS_OPERATORS = {"AVL", "RGTR", "TICE", "Bus"}
 
+    # Luxembourg hub station ID - used to discover all train stations
+    LUXEMBOURG_HUB_STATION_ID = "200405060"
+
     def __init__(self, api_key: str, session: aiohttp.ClientSession | None = None):
         """Initialize the client.
 
@@ -114,6 +117,7 @@ class CFLCommuteClient:
         self._owns_session = session is None
         self._rate_limit_calls_minute: list[float] = []
         self._rate_limit_calls_hour: list[float] = []
+        self._cached_stations_: list[Station] | None = None
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session."""
@@ -204,63 +208,86 @@ class CFLCommuteClient:
             self._record_api_call()
 
     async def search_stations(self, query: str) -> list[Station]:
-        """Search for stations by name."""
-        url = f"{self.BASE_URL}/location.nearbystops"
+        """Search for stations by querying departures from Luxembourg hub.
+
+        This approach discovers all stations that have train service by querying
+        departures from Luxembourg and extracting all calling points. This ensures
+        we include the main Luxembourg station which the location.nearbystops
+        endpoint doesn't return.
+        """
+        if self._cached_stations_ is None:
+            await self._fetch_all_train_stations()
+
+        if not query:
+            return self._cached_stations_
+
+        query_lower = query.lower()
+        return [s for s in self._cached_stations_ if query_lower in s.name.lower()]
+
+    async def _fetch_all_train_stations(self) -> None:
+        """Fetch all train stations from departures API.
+
+        Queries departures from Luxembourg hub station and extracts all unique stations
+        from the journey calling points.
+        """
+        import datetime
+
+        now = datetime.datetime.now()
+        date_str = now.strftime("%Y-%m-%d")
+        time_str = "08:00"
+
+        url = f"{self.BASE_URL}/departureBoard"
         params = {
             "accessId": self._api_key,
-            "originCoordLong": "6.09528",
-            "originCoordLat": "49.77723",
-            "maxNo": "5000",
-            "r": "100000",
+            "id": self.LUXEMBOURG_HUB_STATION_ID,
+            "lang": "en",
             "format": "json",
+            "passlist": "1",
+            "duration": "120",
+            "date": date_str,
+            "time": time_str,
         }
 
         data = await self._request(url, params)
 
-        stations = []
-        # Handle different response formats
-        location_data = data.get("stopLocationOrCoordLocation", [])
+        stations_map: dict[str, Station] = {}
 
-        if isinstance(location_data, dict):
-            location_data = [location_data]
+        departures = data.get("Departure", [])
+        if isinstance(departures, dict):
+            departures = [departures]
 
-        for loc in location_data:
-            stop = loc.get("StopLocation")
-            if not stop:
-                continue
+        for dep in departures:
+            stops = dep.get("Stops", {}).get("Stop", [])
+            if isinstance(stops, dict):
+                stops = [stops]
 
-            # Filter: only include stations with train service
-            product_at_stop = stop.get("productAtStop", [])
-            categories = {p.get("catOut") for p in product_at_stop}
-            if not (categories & self.TRAIN_CATEGORIES):
-                continue
+            for stop in stops:
+                ext_id = stop.get("extId", "")
+                if not ext_id:
+                    continue
 
-            # Extract station name
-            name = stop.get("name", "")
-            if query.lower() not in name.lower():
-                continue
+                name = stop.get("name", "")
+                if not name:
+                    continue
 
-            # Extract ID - could be in 'id' or 'extId'
-            station_id = stop.get("id", stop.get("extId", ""))
+                if ext_id not in stations_map:
+                    lat = float(stop.get("lat", 0))
+                    lon = float(stop.get("lon", 0))
+                    stations_map[ext_id] = Station(
+                        id=ext_id,
+                        name=_clean_station_name(name),
+                        lon=lon,
+                        lat=lat,
+                    )
 
-            # Parse numeric ID from complex format like "A=1@O=Name@X=...@L=160102002@"
-            if "L=" in station_id:
-                parts = station_id.split("@")
-                for part in parts:
-                    if part.startswith("L="):
-                        station_id = part[2:]
-                        break
-
-            stations.append(
-                Station(
-                    id=station_id,
-                    name=_clean_station_name(name),
-                    lon=float(stop.get("lon", 0)),
-                    lat=float(stop.get("lat", 0)),
-                )
-            )
-
-        return stations
+        self._cached_stations_ = sorted(
+            stations_map.values(),
+            key=lambda s: s.name,
+        )
+        _LOGGER.debug(
+            "Fetched %d train stations from departures API",
+            len(self._cached_stations_),
+        )
 
     async def get_departures(
         self,
