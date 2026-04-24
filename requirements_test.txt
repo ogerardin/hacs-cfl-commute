@@ -18,3 +18,8 @@ python-dotenv>=1.0.0
 
 # Home Assistant (for testing)
 homeassistant>=2024.1.0
+
+# HA test container for UI simulation
+ha-testcontainer>=1.0.0
+testcontainers>=4.0.0
+playwright>=1.40.0
