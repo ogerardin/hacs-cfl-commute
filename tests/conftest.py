@@ -63,7 +63,7 @@ def sample_departures():
             "train_number": "1234",
             "is_cancelled": False,
             "delay_minutes": 0,
-            "calling_points": ["Bettembourg", "Esch-sur-Alzette"],
+            "calling_points": ["Luxembourg", "Bettembourg", "Esch-sur-Alzette"],
         },
         {
             "station_id": "200426002",
@@ -76,7 +76,7 @@ def sample_departures():
             "train_number": "1236",
             "is_cancelled": False,
             "delay_minutes": 5,
-            "calling_points": ["Bettembourg", "Esch-sur-Alzette"],
+            "calling_points": ["Luxembourg", "Bettembourg", "Esch-sur-Alzette"],
         },
     ]
 

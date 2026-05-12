@@ -32,8 +32,8 @@ def create_departure(
         train_number=train_num,
         is_cancelled=is_cancelled,
         delay_minutes=0,
-        calling_points=["Pfaffenthal", "Luxembourg"],
-        stop_ids=["200417051", "200405060"],
+        calling_points=["Drauffelt", "Pfaffenthal", "Luxembourg"],
+        stop_ids=["110109004", "200417051", "200405060"],
     )
 
 

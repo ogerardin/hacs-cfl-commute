@@ -275,31 +275,6 @@ class CFLCommuteDataUpdateCoordinator(DataUpdateCoordinator[list[Departure]]):
                 self.time_window,
             )
 
-            # Align with upstream: truncate calling points at destination
-            # (exclude origin, include destination, drop stops after destination)
-            dest_lower = self.destination_name.lower()
-            origin_lower = self.origin_name.lower()
-            for dep in filtered_departures:
-                if not dep.calling_points:
-                    continue
-
-                start = 0
-                for i, cp in enumerate(dep.calling_points):
-                    if origin_lower in cp.lower():
-                        start = i + 1
-                        break
-                if start == 0:
-                    start = 1
-
-                end = len(dep.calling_points)
-                for i, cp in enumerate(dep.calling_points):
-                    if dest_lower in cp.lower():
-                        end = i + 1
-                        break
-
-                dep.calling_points = dep.calling_points[start:end]
-                dep.stop_ids = dep.stop_ids[start:end]
-
             # Limit to num_trains
             num_trains = self.config.get(CONF_NUM_TRAINS, 3)
             filtered_departures = filtered_departures[:num_trains]
