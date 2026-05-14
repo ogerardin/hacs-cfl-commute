@@ -1,5 +1,7 @@
 {
   "name": "CFL Commute",
   "country": "LU",
-  "homeassistant": "2024.1.0"
+  "homeassistant": "2024.1.0",
+  "zip_release": true,
+  "filename": "cfl_commute.zip"
 }

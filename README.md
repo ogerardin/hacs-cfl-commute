@@ -1,6 +1,7 @@
 [![HACS-Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![GitHub Release](https://img.shields.io/github/release/ogerardin/ha-cfl-commute.svg)](https://github.com/ogerardin/ha-cfl-commute/releases)
 [![License](https://img.shields.io/github/license/ogerardin/ha-cfl-commute.svg)](LICENSE)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ogerardin&repository=ha-cfl-commute&category=integration)
 
 # CFL Commute
 This is a Home Assistant integration for tracking Luxembourg CFL train commutes.

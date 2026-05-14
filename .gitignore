@@ -6,3 +6,6 @@ __pycache__/
 .pytest_cache/
 .env
 *.png
+!brand/icon.png
+.playwright-mcp/
+cfl_commute.zip
